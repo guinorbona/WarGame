@@ -1,0 +1,23 @@
+{
+  "name": "war-game",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build --base=./",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@fontsource/dm-sans": "5.3.0",
+    "@fontsource/playfair-display": "5.2.8",
+    "peerjs": "1.5.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "peer": "1.0.2",
+    "vite": "6.4.5"
+  }
+}
