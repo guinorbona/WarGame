@@ -1,0 +1,977 @@
+/* Modern field-command presentation. Layout and game rules remain independent. */
+:root {
+  --accent: #b7dd64;
+  --muted: #91a0a3;
+  --line: #8fa8a522;
+  --panel: #111a1d;
+  --display: "Barlow Condensed", Impact, sans-serif;
+  --mono: "IBM Plex Mono", monospace;
+  color: #e4e9e6;
+  background: #090e11;
+}
+body {
+  background-image:
+    radial-gradient(ellipse at 75% 12%, #354c4030, transparent 50%),
+    repeating-linear-gradient(0deg, transparent 0 79px, #6d898305 79px 80px);
+}
+button,
+input,
+select {
+  border-radius: 1px;
+}
+h1,
+h2,
+h3,
+.mode-card h3,
+.mission h3,
+.command-area h3,
+.victory-banner strong {
+  font-family: var(--display);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+.header {
+  height: 87px;
+  border-bottom: 1px solid #a8bc8b36;
+  background: #0b1114d9;
+}
+.brand-mark {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 32px;
+  border-color: var(--accent);
+  background: #b7dd6409;
+}
+.brand strong {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 37px;
+  letter-spacing: 3px;
+}
+.brand strong > span {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 1.7px;
+}
+.nav-button,
+.edition,
+.eyebrow,
+.tag,
+.map-caption,
+.field-label,
+.panel-title,
+.save-label,
+.phase-bar,
+.player-chip div > span,
+.panel-tabs,
+.board-top,
+.continent-legend,
+.your-stats,
+footer,
+.room-code {
+  font-family: var(--mono);
+}
+.edition {
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+.edition i,
+.radar-dot {
+  background: var(--accent);
+  box-shadow: 0 0 12px #b7dd6440;
+}
+.hero {
+  padding-top: 72px;
+  padding-bottom: 57px;
+}
+.hero .eyebrow {
+  font-size: 9px;
+  letter-spacing: 1.8px;
+}
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(65px, 7vw, 106px);
+  font-weight: 700;
+  line-height: 0.96;
+  letter-spacing: -0.8px;
+  margin: 29px 0 25px;
+}
+h1 em {
+  font-style: normal;
+  color: var(--accent);
+  font-weight: 700;
+}
+.hero > p {
+  line-height: 1.85;
+  font-size: 13px;
+  color: #a7b3b2;
+}
+.hero-details {
+  gap: 25px;
+  margin-top: 32px;
+}
+.hero-details > span {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 38px;
+  padding-right: 30px;
+  color: #e3e9e2;
+}
+.hero-details small {
+  font: 8px var(--mono);
+  letter-spacing: 1px;
+  color: #9caaa4;
+}
+.hero-map:before {
+  background: radial-gradient(ellipse, #3b6b6b20, transparent 70%);
+}
+.hero-map .world-map {
+  width: 120%;
+  margin-left: -10%;
+  border: 1px solid #80a99c25;
+  box-shadow: 0 25px 80px #0003;
+}
+.map-caption {
+  left: -10%;
+  bottom: 17px;
+  right: -10%;
+  color: #a5b69a;
+  padding: 13px 0;
+  font-size: 8px;
+  letter-spacing: 1.4px;
+}
+.section-heading h2 {
+  font-size: 35px;
+  letter-spacing: 0.6px;
+  margin-top: 8px;
+}
+.section-heading > .muted {
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.mode-grid {
+  gap: 14px;
+}
+.mode-card {
+  position: relative;
+  border-radius: 0;
+  background: linear-gradient(120deg, #1b2629, #111a1d);
+  border-color: #71898040;
+  padding: 23px 25px 0;
+  clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%);
+}
+.mode-card:before {
+  content: "";
+  position: absolute;
+  height: 2px;
+  width: 35px;
+  background: #7e9487;
+  top: 0;
+  left: 25px;
+}
+.mode-card:hover {
+  border-color: #b7dd64;
+  transform: translateY(-3px);
+  background: linear-gradient(120deg, #25332a, #17221f);
+}
+.mode-card.online {
+  background: linear-gradient(120deg, #29352870, #141d1b);
+  border-color: #b7dd6475;
+}
+.mode-card.online:before {
+  background: var(--accent);
+  width: 65px;
+}
+.mode-icon {
+  font-family: var(--display);
+  font-size: 31px;
+  background: #b7dd640a;
+  border: 1px solid #b7dd6433;
+  width: 43px;
+  height: 43px;
+}
+.mode-icon svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: square;
+}
+.tag {
+  color: #b0bba9;
+  font-size: 7px;
+  border-color: #7c948036;
+  background: #050b0d35;
+}
+.mode-card h3 {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+.mode-card p {
+  color: #a0afad;
+  font-size: 12px;
+}
+.card-bottom {
+  text-transform: uppercase;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  border-color: #97ac8c29;
+}
+.how-strip {
+  border-radius: 0;
+  border-left: 3px solid #697c53;
+  background: #17221b55;
+}
+.how-strip strong {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.how-strip p {
+  color: #98aaa3;
+}
+.text-button,
+.primary,
+.secondary,
+.danger,
+.small-button {
+  font-family: var(--mono);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  border-radius: 1px;
+}
+.primary {
+  background: #b7dd64;
+  color: #121b0c;
+  padding: 14px 16px;
+  border-color: #caed83;
+  box-shadow: inset 0 -3px #263c1420;
+}
+.primary:hover:not(:disabled) {
+  background: #caf180;
+  box-shadow: 0 0 20px #b7dd6412;
+}
+.secondary {
+  background: #253832;
+  color: #cbded2;
+  border-color: #65876f70;
+}
+.danger {
+  background: #9b4839;
+  color: #fff0e9;
+  border-color: #d77c6060;
+}
+.small-button {
+  border-color: #93a39540;
+  color: #b5c0b8;
+}
+.small-button:hover {
+  background: #b7dd6410;
+}
+input,
+select {
+  background: #0a1316;
+  border-color: #7f9b8c42;
+  font-family: var(--mono);
+  color: #d5dfd8;
+  font-size: 12px;
+  border-radius: 1px;
+}
+.field-label {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #a6b4a9;
+}
+.modal {
+  background: linear-gradient(145deg, #1c2929, #0c1519);
+  border: 1px solid #6c897a80;
+  border-top: 2px solid var(--accent);
+  border-radius: 1px;
+  box-shadow: 0 40px 120px #000a;
+}
+.modal h2 {
+  font-family: var(--display);
+  font-size: 38px;
+  font-weight: 600;
+}
+.rules h3 {
+  font-family: var(--display);
+  font-size: 23px;
+  font-weight: 600;
+}
+.toast {
+  border-radius: 1px;
+  background: #bedc90;
+  color: #111c10;
+  font-family: var(--mono);
+  font-size: 11px;
+  border-left: 4px solid #e5f6c2;
+}
+.panel,
+.invite-panel {
+  border-radius: 1px;
+  border-color: #839f8f3b;
+  background: #111c1f;
+}
+.lobby-main h1 {
+  font-family: var(--display);
+  font-size: 65px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+.invite-panel h2 {
+  font-size: 34px;
+}
+.avatar {
+  border-radius: 2px;
+  font-family: var(--display);
+  font-size: 24px;
+}
+.room-code {
+  border-color: #b7dd6460;
+  color: var(--accent);
+  background: #0b1617;
+}
+.game-main {
+  padding-top: 25px;
+}
+.game-heading h2 {
+  font-size: 35px;
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+}
+.game-heading .eyebrow {
+  font-size: 9px;
+}
+.players-bar {
+  gap: 6px;
+  margin-bottom: 15px;
+}
+.player-chip {
+  border-radius: 1px;
+  background: #111a1e;
+  border-color: #80918d2b;
+  position: relative;
+}
+.player-chip.current {
+  background: color-mix(in srgb, var(--player) 10%, #111a1e);
+  border-color: color-mix(in srgb, var(--player) 70%, #111a1e);
+}
+.player-chip.current:before {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 2px;
+  background: var(--player);
+  top: -1px;
+  left: 12px;
+}
+.player-chip strong {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.player-chip strong small {
+  font-family: var(--mono);
+  font-size: 7px;
+}
+.player-chip div > span {
+  font-size: 8px;
+}
+.player-dot {
+  border-radius: 1px;
+}
+.game-layout {
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 295px;
+}
+.board-panel {
+  background: #0b1620;
+  border-radius: 1px;
+  border-color: #6c8d8e55;
+  box-shadow: 0 10px 40px #0003;
+}
+.board-top {
+  background: #101c21;
+  border-color: #6c8d8e40;
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  padding: 13px 16px;
+}
+.map-tools,
+.zoom-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.map-toggle,
+.zoom-tools button {
+  font-family: var(--mono);
+  border: 1px solid #78929040;
+  color: #c1cfc2;
+  background: #09141c;
+  border-radius: 0;
+  font-size: 9px;
+  padding: 7px 9px;
+}
+.map-toggle.active {
+  color: var(--accent);
+  border-color: #b7dd6470;
+}
+.zoom-tools {
+  gap: 0;
+}
+.zoom-tools button {
+  border-right-width: 0;
+}
+.zoom-tools button:last-child {
+  border-right-width: 1px;
+}
+.map-scroll {
+  padding: 0;
+  overflow: auto;
+  aspect-ratio: 1080/610;
+  max-height: 650px;
+  min-height: 340px;
+  background: #0b1620;
+  scrollbar-width: thin;
+  scrollbar-color: #6b8c81 #0b1620;
+}
+.map-scroll .world-map {
+  min-width: 850px;
+  max-width: none;
+}
+.map-scroll {
+  cursor: grab;
+  user-select: none;
+}
+.map-scroll.panning,
+.map-scroll.panning * {
+  cursor: grabbing;
+}
+.map-guidance {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 15px;
+  font: 7px var(--mono);
+  letter-spacing: 1px;
+  color: #91aaa6;
+  background: #0b161c;
+  border-top: 1px solid #71909930;
+}
+.world-map {
+  display: block;
+  overflow: hidden;
+}
+.geo-graticule {
+  fill: none;
+  stroke: #70a1af;
+  stroke-width: 0.45;
+  opacity: 0.18;
+}
+.bathymetry {
+  stroke: #5e9eb3;
+  stroke-width: 0.6;
+  opacity: 0.075;
+}
+.coastline {
+  fill: none;
+  stroke: #d4e8d6;
+  stroke-width: 0.65;
+  stroke-opacity: 0.65;
+  pointer-events: none;
+}
+.sea-route {
+  stroke: #95c2c7;
+  stroke-width: 0.85;
+  stroke-dasharray: 2 4;
+  fill: none;
+  opacity: 0.48;
+}
+.land-route {
+  stroke: #b7dd64;
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  fill: none;
+  opacity: 0.5;
+}
+.route-active {
+  stroke: #e0f690;
+  stroke-width: 1.6;
+  opacity: 1;
+}
+.zone-shape {
+  transition:
+    fill-opacity 0.15s,
+    stroke 0.15s;
+}
+.territory {
+  cursor: crosshair;
+}
+.territory:hover .zone-shape,
+.territory:focus-visible .zone-shape {
+  fill-opacity: 0.9;
+  stroke: #efffd3;
+  stroke-width: 1.4;
+}
+.territory.selected .zone-shape {
+  stroke: #eaffc4;
+  stroke-width: 1.6;
+}
+.territory.neighbor .zone-shape {
+  stroke: #edfab4;
+  stroke-width: 1.1;
+  stroke-dasharray: 3 2;
+}
+.map-label {
+  fill: #e8f0df;
+  font:
+    600 8.5px "Barlow Condensed",
+    sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  stroke: #061119;
+  stroke-width: 2.5px;
+  paint-order: stroke;
+  pointer-events: none;
+}
+.army-count {
+  font:
+    600 10px "DM Sans",
+    sans-serif;
+  fill: #0b1615;
+  stroke: none;
+}
+.unit-marker {
+  stroke: #071318;
+  stroke-width: 2;
+}
+.territory-marker {
+  cursor: pointer;
+  outline: none;
+}
+.territory-marker:hover .unit-marker,
+.territory-marker:focus-visible .unit-marker {
+  stroke: #e5f8b4;
+  stroke-width: 2;
+}
+.territory-marker:focus-visible .map-label {
+  fill: #d3f68a;
+}
+.label-leader {
+  fill: none;
+  stroke: #d6e6cb;
+  stroke-width: 0.7;
+  opacity: 0.75;
+}
+.target-reticle {
+  stroke: #e2ff9d;
+  stroke-width: 1.4;
+  fill: none;
+  pointer-events: none;
+}
+.map-hud {
+  fill: #9bb9bb;
+  font: 7px var(--mono);
+  letter-spacing: 1px;
+}
+.map-hud path {
+  fill: none;
+  stroke: #a8c4b1;
+  stroke-width: 0.9;
+}
+.ocean-names {
+  fill: #668c9d;
+  font: 8px var(--mono);
+  letter-spacing: 4px;
+  opacity: 0.65;
+}
+.overview-marker text {
+  fill: #d8ead1;
+  font: 5px var(--mono);
+  opacity: 0.65;
+}
+.decorative .zone-shape {
+  stroke-width: 0.5;
+}
+.decorative .coastline {
+  stroke-opacity: 0.5;
+}
+.decorative .map-hud {
+  font-size: 6px;
+}
+.continent-legend {
+  padding: 13px 12px;
+  border-top: 1px solid #71909930;
+  background: #101c21;
+  gap: 12px;
+}
+.continent-legend > span {
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.continent-legend b {
+  background: #40504440;
+  padding: 2px 3px;
+  color: #d5e5ce;
+}
+.continent-legend i {
+  border-radius: 0;
+}
+.phase-bar {
+  background: #0e181c;
+  border-color: #6c8d8e40;
+  padding: 17px 16px;
+  gap: 22px;
+}
+.phase-bar > span {
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+.phase-bar b {
+  border-radius: 0;
+  padding: 4px;
+  font-size: 8px;
+}
+.phase-bar .active b {
+  background: #b7dd64;
+  color: #101c0d;
+  border-color: #b7dd64;
+}
+.command-panel {
+  border-radius: 1px;
+  background: #111c20;
+  border-color: #6f8d7f55;
+}
+.panel-tabs {
+  padding: 0 15px;
+  background: #182326;
+  border-color: #7189803d;
+}
+.panel-tabs button {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 15px 0;
+}
+.mission {
+  padding-top: 22px;
+}
+.mission-icon {
+  font-family: var(--display);
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid #b7dd6435;
+  background: #b7dd6409;
+  font-size: 29px;
+  margin: 18px 0 13px;
+}
+.mission h3 {
+  font-family: var(--display);
+  font-size: 33px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  margin-bottom: 18px;
+}
+.mission details {
+  background: #0a1518;
+  border-radius: 0;
+  border-color: #99ae7c3b;
+}
+.mission summary {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.your-stats {
+  font-size: 8px;
+  text-transform: uppercase;
+  gap: 20px;
+}
+.your-stats b {
+  font-family: var(--display);
+  font-size: 29px;
+  color: #e1e9d6;
+}
+.command-area {
+  border-color: #7189803d;
+}
+.command-area h3 {
+  font-family: var(--display);
+  font-size: 27px;
+  font-weight: 600;
+}
+.pool {
+  font-family: var(--mono);
+  font-size: 14px;
+  background: var(--accent);
+  padding: 4px 9px;
+  border-radius: 0;
+}
+.empty-selection {
+  background: #09151a;
+  color: #9eafa7;
+  font-family: var(--mono);
+  font-size: 9px;
+  text-align: center;
+  border-color: #829c7440;
+}
+.selection {
+  border-radius: 0;
+  background: #0b171a;
+  border-color: #8a9c7540;
+}
+.selection-title strong {
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.selection-title > span {
+  font-family: var(--mono);
+  font-size: 8px;
+  white-space: nowrap;
+}
+.territory-card {
+  background: #1a2b28;
+  border-radius: 1px;
+  border-color: #7a977344;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  font-size: 8px;
+}
+.territory-card:has(input:checked) {
+  background: #b7dd6416;
+}
+.dice-panel {
+  background: #0c171c;
+  border-color: #7189803d;
+}
+.die {
+  border-radius: 1px;
+  font-family: var(--mono);
+  background: #afc6b7;
+}
+.attack-die {
+  background: #dc9070;
+}
+.victory-banner {
+  border-radius: 1px;
+  background: #192b23;
+  border-color: #b7dd64;
+}
+.victory-banner strong {
+  font-family: var(--display);
+  font-size: 29px;
+}
+footer {
+  font-size: 8px;
+  color: #738b83;
+  border-color: #7992802b;
+}
+footer button {
+  font-family: var(--mono);
+  font-size: 8px;
+}
+@media (min-width: 1600px) {
+  .hero {
+    padding-top: 95px;
+    padding-bottom: 75px;
+  }
+}
+@media (max-width: 1050px) {
+  .hero h1 {
+    font-size: 77px;
+  }
+  .hero-map .world-map {
+    width: 112%;
+    margin-left: -6%;
+  }
+  .map-caption {
+    left: -6%;
+    right: -6%;
+  }
+  .mode-card {
+    padding: 20px 19px 0;
+  }
+  .mode-card h3 {
+    font-size: 28px;
+  }
+  .game-layout {
+    grid-template-columns: minmax(0, 1fr) 275px;
+    gap: 12px;
+  }
+  .board-top {
+    padding: 12px;
+    letter-spacing: 0;
+    font-size: 8px;
+  }
+  .map-toggle,
+  .zoom-tools button {
+    padding: 7px;
+    font-size: 8px;
+  }
+  .phase-bar {
+    gap: 12px;
+    padding: 16px 12px;
+  }
+  .phase-bar > span {
+    font-size: 8px;
+  }
+}
+@media (max-width: 760px) {
+  .header {
+    height: 78px;
+  }
+  .brand strong {
+    font-size: 32px;
+  }
+  .hero {
+    padding-top: 45px;
+    padding-bottom: 12px;
+  }
+  .hero h1 {
+    font-size: clamp(64px, 13.8vw, 92px);
+    letter-spacing: -0.5px;
+    margin-top: 23px;
+  }
+  .hero .eyebrow {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .hero-details {
+    gap: 24px;
+  }
+  .hero-details > span {
+    font-size: 32px;
+    padding-right: 24px;
+  }
+  .hero-details small {
+    font-size: 7px;
+  }
+  .hero-map {
+    height: auto;
+    margin: 12px 0 30px;
+    padding-bottom: 35px;
+  }
+  .hero-map .world-map {
+    width: 100%;
+    margin: 0;
+    max-height: none;
+  }
+  .map-caption {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    font-size: 7px;
+    padding: 10px 0;
+    letter-spacing: 1px;
+  }
+  .section-heading h2 {
+    font-size: 31px;
+  }
+  .section-heading .eyebrow {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .mode-card {
+    padding: 22px 24px 0;
+  }
+  .mode-card h3 {
+    font-size: 32px;
+  }
+  .how-strip strong {
+    font-size: 19px;
+    line-height: 1.2;
+    display: block;
+  }
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+  .game-heading h2 {
+    font-size: 29px;
+  }
+  .game-heading .eyebrow {
+    font-size: 8px;
+  }
+  .board-top {
+    font-size: 8px;
+    padding: 12px 10px;
+    gap: 8px;
+  }
+  .board-top > span {
+    max-width: 45%;
+    line-height: 1.6;
+  }
+  .map-tools {
+    gap: 5px;
+  }
+  .map-scroll {
+    min-height: 330px;
+    max-height: 440px;
+  }
+  .map-scroll .world-map {
+    min-width: 850px;
+  }
+  .continent-legend {
+    gap: 7px;
+    padding: 11px 7px;
+  }
+  .continent-legend > span {
+    font-size: 6px;
+  }
+  .phase-bar {
+    padding: 15px 8px;
+  }
+  .mission h3 {
+    font-size: 28px;
+  }
+  .your-stats {
+    gap: 10px;
+    font-size: 7px;
+  }
+  .command-area h3 {
+    font-size: 25px;
+  }
+  .command-area,
+  .mission {
+    padding-left: 13px;
+    padding-right: 13px;
+  }
+  .command-area .primary {
+    padding: 12px 7px;
+    font-size: 8px;
+  }
+  .selection {
+    padding: 10px;
+  }
+  .selection-title strong {
+    font-size: 16px;
+  }
+  .selection-title {
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .modal h2 {
+    font-size: 34px;
+  }
+  .lobby-main h1 {
+    font-size: 52px;
+  }
+}

@@ -2,13 +2,13 @@
 
 Aplicação web independente de conquista territorial, em português, inspirada nas mecânicas clássicas de WAR. Interface responsiva, mapa SVG original com 42 territórios, 3–6 participantes, campanha solo e salas on-line com convite.
 
-Projeto de fãs, sem vínculo com a Grow. Não utiliza imagens, logotipos ou digitalizações do tabuleiro oficial. O mapa é esquemático e as fronteiras válidas são as conexões definidas em `src/world.js`; não é uma reprodução cartográfica de uma edição específica.
+Projeto de fãs, sem vínculo com a Grow. Não utiliza imagens, logotipos ou digitalizações do tabuleiro oficial. A identidade visual é uma central militar moderna, com tipografia condensada, painéis táticos e mapa geográfico. Os contornos vêm do Natural Earth (domínio público); as divisões estratégicas são esquemáticas e as fronteiras válidas continuam sendo as conexões definidas em `src/world.js`.
 
 ## Jogar
 
 - **Solo:** escolha a quantidade de adversários automáticos. A campanha é salva automaticamente no armazenamento local do navegador. Use **Continuar minha campanha salva** para recuperar o progresso.
 - **On-line:** crie uma sala, copie o convite e compartilhe com seus amigos. Complete a mesa com robôs se desejar. O anfitrião inicia quando todos estiverem conectados, com 3 a 6 participantes no total.
-- Selecione um território para reforçar, atacar um vizinho ou remanejar. O botão **Fronteiras** exibe as conexões do mapa. Selecione os alvos no mapa ou na lista.
+- Selecione um território ou seu marcador para reforçar, atacar um vizinho ou remanejar. O botão **Rotas** exibe as conexões do mapa. Selecione os alvos no mapa ou na lista. Use **+ / − / 100%** para ajustar a escala, arraste o mapa com o mouse ou deslize no celular. Também é possível focar o mapa e usar as setas do teclado. Marcadores e linhas-guia tornam as regiões menores selecionáveis.
 - A aba **Missão** revela seu objetivo, **Cartas** permite trocas e **Diário** mostra as jogadas. O botão **Como jogar** abre o manual completo.
 
 ## Regras implementadas
@@ -82,16 +82,25 @@ O Playwright inicia um PeerServer local e uma instância Vite separada. O teste 
 
 **Limite do ambiente de desenvolvimento em nuvem:** o Chromium pré-instalado tem a política gerenciada `WebRtcIPHandling=disable_non_proxied_udp`. Nesse ambiente, a sinalização local foi estabelecida, mas não houve candidatos ICE e o teste WebRTC não completou a entrada do convidado. A restrição não foi removida nem o teste desativado. Execute o teste completo em um navegador/rede que permita WebRTC para confirmar o fluxo on-line. Os testes de interface solo e as simulações da lógica não dependem desse canal.
 
+## Cartografia e identidade visual
+
+O mapa utiliza dados Natural Earth 1:110m, distribuídos em domínio público pelo pacote `world-atlas`, em projeção Natural Earth. Uma partição geométrica por continente cria 42 regiões estratégicas com os mesmos IDs, cartas e conexões da versão anterior; campanhas salvas continuam compatíveis. Os contornos geográficos não alteram as regras de vizinhança.
+
+`src/map-geometry.json` já está gerado e versionado: o navegador não baixa cartografia nem executa triangulação. Para editar as posições das regiões ou linhas-guia, altere `scripts/generate-map.js` e execute `npm run generate:map`. A geração é determinística e não é necessária para builds normais. Fontes Barlow Condensed, IBM Plex Mono e DM Sans são distribuídas com o site e suas licenças ficam em `public/licenses`.
+
 ## Estrutura
 
-| Arquivo                | Responsabilidade                                         |
-| ---------------------- | -------------------------------------------------------- |
-| `src/world.js`         | Mapa, continentes, fronteiras e cores                    |
-| `src/engine.js`        | Regras puras, validação, bots e filtragem de informações |
-| `src/network.js`       | Salas, identidade de sessão e sincronização PeerJS       |
-| `src/main.js`          | Interface, comandos e persistência solo                  |
-| `src/style.css`        | Layout responsivo e estilos                              |
-| `tests/engine.test.js` | Regras e simulações determinísticas                      |
-| `tests/app.spec.js`    | Fluxos no navegador e comunicação WebRTC                 |
+| Arquivo                   | Responsabilidade                                         |
+| ------------------------- | -------------------------------------------------------- |
+| `src/world.js`            | Mapa, continentes, fronteiras e cores                    |
+| `src/engine.js`           | Regras puras, validação, bots e filtragem de informações |
+| `src/network.js`          | Salas, identidade de sessão e sincronização PeerJS       |
+| `src/main.js`             | Interface, comandos e persistência solo                  |
+| `src/style.css`           | Layout responsivo e estilos                              |
+| `src/tactical.css`        | Identidade militar moderna e legibilidade do mapa        |
+| `src/tactical-map.js`     | Regiões geográficas, rotas, marcadores e coordenadas     |
+| `scripts/generate-map.js` | Geração offline da cartografia                           |
+| `tests/engine.test.js`    | Regras e simulações determinísticas                      |
+| `tests/app.spec.js`       | Fluxos no navegador e comunicação WebRTC                 |
 
 Não há backend próprio, telemetria ou envio da campanha solo. Para jogar on-line, os participantes se conectam aos serviços de sinalização/ICE e ao anfitrião.

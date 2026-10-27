@@ -1,12 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { WORLD } from "../src/world.js";
+import { createGame } from "../src/engine.js";
 
 test("landing, rules and mobile layout", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "O mundo é o seu tabuleiro." }),
+    page.getByRole("heading", { name: "Domine o mapa. Cumpra a missão." }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Como jogar" }).click();
   await expect(page.getByRole("dialog")).toContainText(
@@ -52,17 +53,17 @@ test("solo reinforcement, battle, bot turn and save recovery", async ({
     const regional = Object.keys(s.board).find(
       (t) => s.board[t].owner === 0 && WORLD[t].continent === continent,
     );
-    await page.locator(`[data-territory="${regional}"]`).click();
+    await page.locator(`[data-marker="${regional}"]`).click();
     await page.locator("#amount").fill(String(count));
     await page.locator('[data-action="reinforce"]').click();
   }
-  await page.locator(`[data-territory="${own}"]`).click();
+  await page.locator(`[data-marker="${own}"]`).click();
   await page.locator("#amount").fill(String(s.pool));
   await page.locator('[data-action="reinforce"]').click();
   await expect(page.locator('[data-action="next"]')).toBeEnabled();
   await page.locator('[data-action="next"]').click();
   await expect(page.locator(".command-area h3")).toContainText("Atacar");
-  await page.locator(`[data-territory="${own}"]`).click();
+  await page.locator(`[data-marker="${own}"]`).click();
   await page.locator("#target").selectOption({ index: 1 });
   await page.locator('[data-action="attack"]').click();
   await expect(page.locator(".dice-panel")).toBeVisible();
@@ -102,6 +103,55 @@ test("solo reinforcement, battle, bot turn and save recovery", async ({
   ).toBe(true);
 });
 
+test("tactical map zoom, drag, keyboard selection and saved-game compatibility", async ({
+  page,
+}) => {
+  const saved = createGame([
+    { name: "Veterano" },
+    { name: "Atlas", bot: true },
+    { name: "Aurora", bot: true },
+  ]);
+  await page.addInitScript(
+    (saved) => localStorage.setItem("war-save", JSON.stringify(saved)),
+    saved,
+  );
+  await page.goto("/");
+  await page.locator('[data-action="resume"]').click();
+  await expect(page.locator(".territory-marker")).toHaveCount(42);
+  await page.getByRole("button", { name: "Ampliar mapa" }).click();
+  await expect(
+    page.getByRole("button", { name: "Restaurar escala" }),
+  ).toHaveText("150%");
+  const viewport = page.locator(".map-scroll");
+  await viewport.evaluate((el) => el.scrollTo(110, 20));
+  await page.locator('[data-tab="cards"]').click();
+  expect(await viewport.evaluate((el) => el.scrollLeft)).toBe(110);
+  const box = await viewport.boundingBox();
+  await page.mouse.move(box.x + 180, box.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 70, box.y + 80, { steps: 8 });
+  await page.mouse.up();
+  expect(await viewport.evaluate((el) => el.scrollLeft)).toBeGreaterThan(180);
+  await expect(page.locator(".selection")).toHaveCount(0);
+  await page.getByRole("button", { name: "Restaurar escala" }).click();
+  await page.locator('[data-marker="japao"]').focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".selection-title strong")).toHaveText("Japão");
+  await expect(
+    page.getByRole("button", { name: "Restaurar escala" }),
+  ).toHaveText("100%");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const initialWidth = await page
+    .locator(".map-scroll svg")
+    .evaluate((el) => el.getBoundingClientRect().width);
+  await page.getByRole("button", { name: "Ampliar mapa" }).click();
+  expect(
+    await page
+      .locator(".map-scroll svg")
+      .evaluate((el) => el.getBoundingClientRect().width),
+  ).toBeGreaterThan(initialWidth * 1.4);
+});
+
 test("real WebRTC: create room, invite, sync a move, reject out-of-turn, reconnect", async ({
   browser,
 }) => {
@@ -132,24 +182,24 @@ test("real WebRTC: create room, invite, sync a move, reject out-of-turn, reconne
     await expect(guest.locator(".player-chip").nth(1)).toContainText("VOCÊ");
     await expect(guest.locator('[data-action="next"]')).toHaveCount(0);
     const source = host
-      .locator("[data-territory]")
+      .locator("[data-marker]")
       .filter({ has: host.locator('circle[fill="#db775e"]') })
       .first();
-    const id = await source.getAttribute("data-territory");
+    const id = await source.getAttribute("data-marker");
     await source.click();
     const before = Number(
-      await guest.locator(`[data-territory="${id}"] .army-count`).textContent(),
+      await guest.locator(`[data-marker="${id}"] .army-count`).textContent(),
     );
     await host.locator('[data-action="reinforce"]').click();
-    await expect(
-      guest.locator(`[data-territory="${id}"] .army-count`),
-    ).toHaveText(String(before + 1));
+    await expect(guest.locator(`[data-marker="${id}"] .army-count`)).toHaveText(
+      String(before + 1),
+    );
     await guest.reload();
     await guest.getByRole("button", { name: "Entrar na sala →" }).click();
     await expect(guest.locator(".territory")).toHaveCount(42);
-    await expect(
-      guest.locator(`[data-territory="${id}"] .army-count`),
-    ).toHaveText(String(before + 1));
+    await expect(guest.locator(`[data-marker="${id}"] .army-count`)).toHaveText(
+      String(before + 1),
+    );
     await expect(guest.locator(".player-chip").nth(1)).toContainText("VOCÊ");
   } finally {
     await hostContext.close();

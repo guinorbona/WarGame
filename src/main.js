@@ -1,9 +1,12 @@
 import "@fontsource/dm-sans/400.css";
 import "@fontsource/dm-sans/500.css";
 import "@fontsource/dm-sans/600.css";
-import "@fontsource/playfair-display/500.css";
-import "@fontsource/playfair-display/500-italic.css";
+import "@fontsource/barlow-condensed/600.css";
+import "@fontsource/barlow-condensed/700.css";
+import "@fontsource/ibm-plex-mono/400.css";
 import "./style.css";
+import "./tactical.css";
+import { tacticalMap } from "./tactical-map.js";
 import { TERRITORIES, WORLD, CONTINENTS, COLORS, SYMBOLS } from "./world.js";
 import {
   createGame,
@@ -37,7 +40,8 @@ let state = null,
   presence = [],
   timer = null,
   toastTimer = null,
-  showConnections = false;
+  showConnections = false,
+  mapZoom = 1;
 let name = localStorage.getItem("war-name") || "Comandante";
 const query = new URLSearchParams(location.search);
 let invite = query.get("room") || "";
@@ -75,30 +79,40 @@ function hasSave() {
 }
 const myTurn = () => state && state.current === me && state.winner === null;
 function render() {
-  app.innerHTML = `<header class="header"><a href="#" class="brand" data-action="home" aria-label="WAR, início"><span class="brand-mark">W</span><strong>WAR<span>ESTRATÉGIA & CONQUISTA</span></strong></a><nav><button class="nav-button" data-action="rules">Como jogar <span>↗</span></button><span class="edition">EDIÇÃO DIGITAL <i></i></span></nav></header>${state ? gameView() : mode === "lobby" ? lobbyView() : homeView()}<footer><span>UM MUNDO. SUA ESTRATÉGIA.</span><span>Projeto independente de fãs · Sem vínculo com a Grow</span><button data-action="rules">Regras & informações ↗</button></footer>${modal ? modalView() : ""}`;
+  const previousMap = document.querySelector(".map-scroll");
+  const previousPosition = previousMap
+    ? [previousMap.scrollLeft, previousMap.scrollTop]
+    : [0, 0];
+  app.innerHTML = `<header class="header"><a href="#" class="brand" data-action="home" aria-label="WAR, início"><span class="brand-mark">W</span><strong>WAR<span>COMANDO ESTRATÉGICO</span></strong></a><nav><button class="nav-button" data-action="rules">Como jogar <span>↗</span></button><span class="edition">SISTEMA TÁTICO / ON-LINE <i></i></span></nav></header>${state ? gameView() : mode === "lobby" ? lobbyView() : homeView()}<footer><span>UM MUNDO. SUA ESTRATÉGIA.</span><span>Projeto independente de fãs · Sem vínculo com a Grow</span><button data-action="rules">Regras & informações ↗</button></footer>${modal ? modalView() : ""}`;
   bind();
+  document.querySelector(".map-scroll")?.scrollTo(...previousPosition);
+}
+function commandIcon(type) {
+  const paths = {
+    solo: '<circle cx="16" cy="16" r="9"/><circle cx="16" cy="16" r="3"/><path d="M16 2v7m0 14v7M2 16h7m14 0h7"/>',
+    squad:
+      '<circle cx="12" cy="11" r="4"/><path d="M4 27v-4a8 8 0 0 1 16 0v4M23 8a4 4 0 0 1 0 8m1 4a7 7 0 0 1 4 7M8 27h8"/>',
+    radio:
+      '<rect x="7" y="9" width="18" height="20" rx="1"/><path d="M11 9V2m0 15h10M12 22h2m4 0h2m-8 4h8M22 3l4 4m-1-6 4 4"/>',
+  };
+  return `<svg viewBox="0 0 32 32" aria-hidden="true">${paths[type]}</svg>`;
 }
 function homeView() {
-  return `<main class="landing"><section class="hero"><div class="eyebrow"><span></span> A PRÓXIMA JOGADA É SUA</div><h1>O mundo é o<br>seu <em>tabuleiro.</em></h1><p>Trace sua estratégia. Conquiste territórios.<br>Reúna seus amigos para uma nova história.</p><div class="hero-details"><span>42 <small>TERRITÓRIOS</small></span><span>6 <small>CONTINENTES</small></span><span>3–6 <small>JOGADORES</small></span></div></section><section class="hero-map" aria-label="Mapa dos 42 territórios">${mapView(true)}<div class="map-caption"><span class="radar-dot"></span> CENTRAL DE OPERAÇÕES <span>01 / 06</span></div></section><section class="play-section"><div class="section-heading"><div><span class="eyebrow">ESCOLHA SUA MISSÃO</span><h2>Como você vai conquistar?</h2></div><span class="muted">Toda grande conquista começa com uma decisão.</span></div><div class="mode-grid"><button class="mode-card" data-action="solo-modal"><span class="card-top"><span class="mode-icon">♟</span><span class="tag">SEM ESPERA</span></span><h3>Campanha solo</h3><p>Você contra o mundo. Enfrente adversários automáticos e aprimore sua estratégia.</p><span class="card-bottom">Iniciar campanha <span>↗</span></span></button><button class="mode-card online" data-action="create-modal"><span class="card-top"><span class="mode-icon">⚑</span><span class="tag">COM AMIGOS</span></span><h3>Criar uma sala</h3><p>Seu tabuleiro, sua turma. Crie uma partida e compartilhe o convite com seus amigos.</p><span class="card-bottom">Preparar a mesa <span>↗</span></span></button><button class="mode-card" data-action="join-modal"><span class="card-top"><span class="mode-icon">⌁</span><span class="tag">TEM UM CONVITE?</span></span><h3>Entrar em uma sala</h3><p>Os aliados já estão esperando. Use o código da sala para entrar na disputa.</p><span class="card-bottom">Encontrar minha sala <span>↗</span></span></button></div>${hasSave() ? '<button class="resume" data-action="resume">↺ Continuar minha campanha salva <span>→</span></button>' : ""}</section><section class="how-strip"><span class="mini-globe">◎</span><div><strong>Fácil de começar. Impossível prever o final.</strong><p>Objetivos secretos, alianças improváveis e uma nova disputa a cada partida.</p></div><button class="text-button" data-action="rules">Conheça as regras <span>→</span></button></section></main>`;
+  return `<main class="landing"><section class="hero"><div class="eyebrow"><span></span> CENTRAL DE COMANDO // WAR</div><h1>Domine o mapa.<br>Cumpra a <em>missão.</em></h1><p>Mobilize suas tropas. Controle os pontos estratégicos.<br>Sua próxima ordem pode mudar o campo de batalha.</p><div class="hero-details"><span>42 <small>TERRITÓRIOS</small></span><span>6 <small>CONTINENTES</small></span><span>3–6 <small>JOGADORES</small></span></div></section><section class="hero-map" aria-label="Mapa dos 42 territórios">${mapView(true)}<div class="map-caption"><span class="radar-dot"></span> RECONHECIMENTO GLOBAL <span>SAT / 06</span></div></section><section class="play-section"><div class="section-heading"><div><span class="eyebrow">SELECIONE A OPERAÇÃO</span><h2>Qual é a sua próxima ordem?</h2></div><span class="muted">Toda grande conquista começa com uma decisão.</span></div><div class="mode-grid"><button class="mode-card" data-action="solo-modal"><span class="card-top"><span class="mode-icon">${commandIcon("solo")}</span><span class="tag">SEM ESPERA</span></span><h3>Campanha solo</h3><p>Você contra o mundo. Enfrente adversários automáticos e aprimore sua estratégia.</p><span class="card-bottom">Iniciar campanha <span>↗</span></span></button><button class="mode-card online" data-action="create-modal"><span class="card-top"><span class="mode-icon">${commandIcon("squad")}</span><span class="tag">COM AMIGOS</span></span><h3>Criar uma sala</h3><p>Seu tabuleiro, sua turma. Crie uma partida e compartilhe o convite com seus amigos.</p><span class="card-bottom">Preparar a mesa <span>↗</span></span></button><button class="mode-card" data-action="join-modal"><span class="card-top"><span class="mode-icon">${commandIcon("radio")}</span><span class="tag">TEM UM CONVITE?</span></span><h3>Entrar em uma sala</h3><p>Os aliados já estão esperando. Use o código da sala para entrar na disputa.</p><span class="card-bottom">Encontrar minha sala <span>↗</span></span></button></div>${hasSave() ? '<button class="resume" data-action="resume">↺ Continuar minha campanha salva <span>→</span></button>' : ""}</section><section class="how-strip"><span class="mini-globe">◎</span><div><strong>Fácil de começar. Impossível prever o final.</strong><p>Objetivos secretos, alianças improváveis e uma nova disputa a cada partida.</p></div><button class="text-button" data-action="rules">Conheça as regras <span>→</span></button></section></main>`;
 }
 function mapView(decorative = false) {
-  const focus = !decorative && selected ? WORLD[selected] : null;
-  return `<svg class="world-map ${decorative ? "decorative" : ""}" viewBox="0 0 1080 610" role="group" aria-label="Mapa esquemático. Selecione um território para jogar."><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#81978a" stroke-width=".5" opacity=".12"/></pattern></defs><rect width="1080" height="610" fill="url(#grid)"/><ellipse cx="535" cy="306" rx="505" ry="270" fill="none" stroke="#78917d" stroke-dasharray="3 10" opacity=".15"/>${TERRITORIES.flatMap((t) => t.neighbors.filter((n) => t.id < n && ((showConnections && !decorative) || (focus && (t.id === focus.id || n === focus.id)))).map((n) => `<line x1="${t.x}" y1="${t.y}" x2="${WORLD[n].x}" y2="${WORLD[n].y}" stroke="#e1c087" stroke-width="2" stroke-dasharray="5 5" opacity=".65"/>`)).join("")}<path d="M100 80 Q530 -45 952 90" fill="none" stroke="#81978a" stroke-dasharray="5 7" opacity=".25"/>${TERRITORIES.map(
-    (t, i) => {
-      const cell = state?.board[t.id];
-      const color = decorative
-        ? CONTINENTS.find((c) => c.id === t.continent).color
-        : COLORS[cell.owner];
-      const isNeighbor = focus?.neighbors.includes(t.id),
-        active = selected === t.id || target === t.id;
-      return `<g ${decorative ? "" : `class="territory ${active ? "selected" : ""} ${isNeighbor ? "neighbor" : ""}" data-territory="${t.id}" tabindex="0" role="button" aria-label="${escape(t.name)}, ${cell.armies} exércitos, ${escape(state.players[cell.owner].name)}"`}><title>${escape(t.name)}${decorative ? "" : ` · ${escape(state.players[cell.owner].name)} · ${cell.armies} exércitos`}</title><polygon points="${t.shape}" fill="${color}" fill-opacity="${decorative ? ".21" : active ? ".65" : ".29"}" stroke="${color}" stroke-width="${active ? 3 : 1}" stroke-linejoin="round"/>${decorative ? `<circle cx="${t.x}" cy="${t.y}" r="3" fill="${color}" opacity=".7"/>` : `<text class="map-label" x="${t.x}" y="${t.y - 10}" text-anchor="middle">${escape(t.name)}</text><circle cx="${t.x}" cy="${t.y + 8}" r="12" fill="${color}"/><text class="army-count" x="${t.x}" y="${t.y + 12}" text-anchor="middle">${cell.armies}</text>`}</g>`;
-    },
-  ).join(
-    "",
-  )}${decorative ? '<text x="177" y="363" class="ocean-label">OCEANO PACÍFICO</text><text x="390" y="467" class="ocean-label">ATLÂNTICO</text><text x="705" y="512" class="ocean-label">ÍNDICO</text>' : ""}</svg>`;
+  return tacticalMap({
+    state,
+    selected,
+    target,
+    showConnections,
+    zoom: mapZoom,
+    decorative,
+    escape,
+  });
 }
 function lobbyView() {
-  return `<main class="lobby-main"><button class="text-button" data-action="leave">← Voltar ao início</button><div class="eyebrow">SALA DE ESTRATÉGIA</div><h1>Reúna seu <em>esquadrão.</em></h1><p class="muted">${lobby ? "Compartilhe o convite. A conquista é melhor em boa companhia." : "Conectando à central de operações…"}</p>${lobby ? `<div class="lobby-layout"><section class="panel"><div class="panel-title">COMANDANTES <span>${lobby.members.length} / 6</span></div>${lobby.members.map((p, i) => `<div class="lobby-player"><span class="avatar" style="--player:${COLORS[i]}">${escape(p.name[0].toUpperCase())}</span><strong>${escape(p.name)}</strong><span class="muted">${!p.online ? "Desconectado" : i === 0 ? "Anfitrião" : "Pronto"}</span></div>`).join("")}${lobby.host ? `<label class="field-label" for="bot-count">ADVERSÁRIOS AUTOMÁTICOS</label><select id="bot-count">${Array.from({ length: 7 - lobby.members.length }, (_, i) => `<option value="${i}" ${i === Math.max(0, 3 - lobby.members.length) ? "selected" : ""}>${i} ${i === 1 ? "adversário" : "adversários"}</option>`).join("")}</select><button class="primary wide" data-action="start-online">Iniciar partida →</button><p class="fine">3 a 6 participantes, contando os adversários automáticos. Todos os humanos precisam estar conectados.</p>` : '<p class="waiting"><span class="radar-dot"></span> Aguardando o anfitrião iniciar a partida.</p>'}</section><section class="invite-panel"><span class="eyebrow">PASSAPORTE PARA A PARTIDA</span><h2>Convide seus amigos.</h2><label class="field-label">CÓDIGO DA SALA</label><div class="room-code">${escape(lobby.code)}</div><button class="primary wide" data-action="copy">Copiar link de convite ↗</button><p class="fine">Mantenha esta aba aberta. A sala usa conexão direta entre os participantes. Se o anfitrião sair, a partida será interrompida.</p></section></div>` : ""}</main>`;
+  return `<main class="lobby-main"><button class="text-button" data-action="leave">← Voltar ao início</button><div class="eyebrow">SALA DE ESTRATÉGIA</div><h1>Mobilize seu <em>esquadrão.</em></h1><p class="muted">${lobby ? "Compartilhe o convite. A conquista é melhor em boa companhia." : "Conectando à central de operações…"}</p>${lobby ? `<div class="lobby-layout"><section class="panel"><div class="panel-title">COMANDANTES <span>${lobby.members.length} / 6</span></div>${lobby.members.map((p, i) => `<div class="lobby-player"><span class="avatar" style="--player:${COLORS[i]}">${escape(p.name[0].toUpperCase())}</span><strong>${escape(p.name)}</strong><span class="muted">${!p.online ? "Desconectado" : i === 0 ? "Anfitrião" : "Pronto"}</span></div>`).join("")}${lobby.host ? `<label class="field-label" for="bot-count">ADVERSÁRIOS AUTOMÁTICOS</label><select id="bot-count">${Array.from({ length: 7 - lobby.members.length }, (_, i) => `<option value="${i}" ${i === Math.max(0, 3 - lobby.members.length) ? "selected" : ""}>${i} ${i === 1 ? "adversário" : "adversários"}</option>`).join("")}</select><button class="primary wide" data-action="start-online">Iniciar partida →</button><p class="fine">3 a 6 participantes, contando os adversários automáticos. Todos os humanos precisam estar conectados.</p>` : '<p class="waiting"><span class="radar-dot"></span> Aguardando o anfitrião iniciar a partida.</p>'}</section><section class="invite-panel"><span class="eyebrow">CANAL DE MOBILIZAÇÃO</span><h2>Convide seus amigos.</h2><label class="field-label">CÓDIGO DA SALA</label><div class="room-code">${escape(lobby.code)}</div><button class="primary wide" data-action="copy">Copiar link de convite ↗</button><p class="fine">Mantenha esta aba aberta. A sala usa conexão direta entre os participantes. Se o anfitrião sair, a partida será interrompida.</p></section></div>` : ""}</main>`;
 }
 function gameView() {
   const current = state.players[state.current],
@@ -108,9 +122,9 @@ function gameView() {
     isTurn = myTurn();
   const pool =
     state.pool + Object.values(state.continentPools).reduce((a, b) => a + b, 0);
-  return `<main class="game-main"><div class="game-heading"><div><span class="eyebrow">${mode === "solo" ? "CAMPANHA SOLO" : `SALA ${escape(room?.code || "")}`} <span class="separator">/</span> RODADA ${state.round}</span><h2>A mesa de comando.</h2></div><div class="game-heading-actions"><span class="save-label">${mode === "solo" ? "● Progresso salvo neste navegador" : "● Conexão entre jogadores"}</span><button class="small-button" data-action="leave">Sair da mesa</button></div></div><div class="players-bar">${state.players.map((q) => `<div class="player-chip ${q.id === state.current ? "current" : ""} ${!owned(state, q.id).length ? "eliminated" : ""}" style="--player:${q.color}"><span class="player-dot"></span><div><strong>${escape(q.name)}${q.id === me ? " <small>VOCÊ</small>" : ""}</strong><span>${owned(state, q.id).length} territórios · ${q.cardCount ?? q.cards.length} cartas${q.bot ? " · IA" : mode === "online" && presence.find((m) => m.id === q.id)?.online === false ? " · desconectado" : ""}</span></div>${q.id === state.current ? '<span class="turn-mark">◂</span>' : ""}</div>`).join("")}</div><div class="game-layout"><section class="board-panel"><div class="board-top"><span><i class="status-dot" style="background:${current.color}"></i> ${state.winner !== null ? "Partida encerrada" : isTurn ? "Sua vez, comandante" : `Vez de ${escape(current.name)}`}</span><button class="map-toggle ${showConnections ? "active" : ""}" data-action="connections">⌁ Fronteiras</button></div><div class="map-scroll">${mapView()}</div><div class="continent-legend">${CONTINENTS.map((c) => `<span title="Bônus de ${c.bonus} exércitos, exclusivos deste continente"><i style="background:${c.color}"></i>${c.name} <b>+${c.bonus}</b></span>`).join("")}</div><div class="phase-bar">${["reinforce", "attack", "move"].map((phase, i) => `<span class="${state.phase === phase ? "active" : ""}"><b>0${i + 1}</b> ${phases[phase]}</span>`).join("")}<span class="phase-round">RODADA ${String(state.round).padStart(2, "0")}</span></div></section><aside class="command-panel"><div class="panel-tabs"><button data-tab="mission" class="${tab === "mission" ? "active" : ""}">Missão</button><button data-tab="cards" class="${tab === "cards" ? "active" : ""}">Cartas <small>${p.cards.length}</small></button><button data-tab="log" class="${tab === "log" ? "active" : ""}">Diário</button></div>${
+  return `<main class="game-main"><div class="game-heading"><div><span class="eyebrow">${mode === "solo" ? "CAMPANHA SOLO" : `SALA ${escape(room?.code || "")}`} <span class="separator">/</span> RODADA ${state.round}</span><h2>CENTRAL DE OPERAÇÕES</h2></div><div class="game-heading-actions"><span class="save-label">${mode === "solo" ? "● Progresso salvo neste navegador" : "● Conexão entre jogadores"}</span><button class="small-button" data-action="leave">Sair da mesa</button></div></div><div class="players-bar">${state.players.map((q) => `<div class="player-chip ${q.id === state.current ? "current" : ""} ${!owned(state, q.id).length ? "eliminated" : ""}" style="--player:${q.color}"><span class="player-dot"></span><div><strong>${escape(q.name)}${q.id === me ? " <small>VOCÊ</small>" : ""}</strong><span>${owned(state, q.id).length} territórios · ${q.cardCount ?? q.cards.length} cartas${q.bot ? " · IA" : mode === "online" && presence.find((m) => m.id === q.id)?.online === false ? " · desconectado" : ""}</span></div>${q.id === state.current ? '<span class="turn-mark">◂</span>' : ""}</div>`).join("")}</div><div class="game-layout"><section class="board-panel"><div class="board-top"><span><i class="status-dot" style="background:${current.color}"></i> ${state.winner !== null ? "Partida encerrada" : isTurn ? "Sua vez, comandante" : `Vez de ${escape(current.name)}`}</span><div class="map-tools"><button class="map-toggle ${showConnections ? "active" : ""}" data-action="connections">⌁ Rotas</button><div class="zoom-tools" aria-label="Escala do mapa"><button data-action="zoom-out" aria-label="Diminuir mapa" ${mapZoom <= 1 ? "disabled" : ""}>−</button><button data-action="zoom-reset" aria-label="Restaurar escala">${Math.round(mapZoom * 100)}%</button><button data-action="zoom-in" aria-label="Ampliar mapa" ${mapZoom >= 2.5 ? "disabled" : ""}>+</button></div></div></div><div class="map-scroll" tabindex="0" role="region" aria-label="Mapa de operações. Arraste ou use as setas para explorar.">${mapView()}</div><div class="map-guidance"><span>↔ ARRASTE PARA EXPLORAR</span><span>+ AMPLIAR SETOR</span></div><div class="continent-legend">${CONTINENTS.map((c) => `<span title="Bônus de ${c.bonus} exércitos, exclusivos deste continente"><i style="background:${c.color}"></i>${c.name} <b>+${c.bonus}</b></span>`).join("")}</div><div class="phase-bar">${["reinforce", "attack", "move"].map((phase, i) => `<span class="${state.phase === phase ? "active" : ""}"><b>0${i + 1}</b> ${phases[phase]}</span>`).join("")}<span class="phase-round">RODADA ${String(state.round).padStart(2, "0")}</span></div></section><aside class="command-panel"><div class="panel-tabs"><button data-tab="mission" class="${tab === "mission" ? "active" : ""}">Missão</button><button data-tab="cards" class="${tab === "cards" ? "active" : ""}">Cartas <small>${p.cards.length}</small></button><button data-tab="log" class="${tab === "log" ? "active" : ""}">Diário</button></div>${
     tab === "mission"
-      ? `<div class="mission"><span class="eyebrow">SEU OBJETIVO SECRETO</span><span class="mission-icon">⚑</span><h3>Uma missão.<br>Um novo império.</h3><details><summary>Revelar meu objetivo</summary><p>${escape(objectiveText(p.objective))}</p></details><div class="your-stats"><span><b>${own.length}</b> territórios</span><span><b>${armies}</b> exércitos</span></div></div>`
+      ? `<div class="mission"><span class="eyebrow">SEU OBJETIVO SECRETO</span><span class="mission-icon">⚑</span><h3>OBJETIVO<br>DA OPERAÇÃO.</h3><details><summary>Revelar meu objetivo</summary><p>${escape(objectiveText(p.objective))}</p></details><div class="your-stats"><span><b>${own.length}</b> territórios</span><span><b>${armies}</b> exércitos</span></div></div>`
       : tab === "cards"
         ? cardsView()
         : `<div class="game-log" aria-live="polite">${state.log
@@ -175,7 +189,7 @@ function diceView() {
 function modalView() {
   let content = "";
   if (modal === "rules")
-    content = `<span class="eyebrow">MANUAL DO COMANDANTE</span><h2>Estratégia antes da sorte.</h2><div class="rules"><p>Adaptação independente das mecânicas clássicas de conquista territorial de WAR. Não é um produto oficial da Grow. O mapa é esquemático; as linhas e a lista de vizinhos definem as fronteiras válidas.</p><h3>01 · Preparação e objetivo</h3><p>3 a 6 jogadores, 42 territórios e 6 continentes. Cada jogador recebe um objetivo secreto: conquistar continentes, 24 territórios, 18 territórios com 2 exércitos em cada um, ou eliminar pessoalmente os exércitos de uma cor. Vence quem cumprir seu objetivo, verificado após cada ação.</p><p>Nesta edição, a distribuição inicial é automática e aleatória: um exército em cada território, depois completam-se 35, 30, 25 ou 20 exércitos por jogador em mesas de 3, 4, 5 ou 6 participantes. Se o objetivo indicar sua própria cor ou uma cor ausente, ele será substituído por conquistar 24 territórios. Se outro jogador eliminar sua cor-alvo, seu objetivo também passa a ser conquistar 24 territórios.</p><h3>02 · Reforços e continentes</h3><p>No início do turno, receba metade dos seus territórios, arredondada para baixo, com mínimo de 3 exércitos. O domínio completo de continentes gera reservas extras, que devem ser usadas no próprio continente: América do Norte +5, América do Sul +2, Europa +5, África +3, Ásia +7, Oceania +2. Distribua todos os reforços antes de atacar.</p><h3>03 · Combates</h3><p>Ataque apenas territórios inimigos vizinhos. Sempre deixe ao menos um exército na origem. O atacante lança até 3 dados (limitados aos exércitos menos um); o defensor lança até 3, limitados aos seus exércitos. Compare os maiores dados em pares: quem tiver o menor perde um exército. Empates favorecem a defesa. Você pode atacar quantas vezes quiser ou pular esta fase.</p><p>Ao conquistar, mova de 1 a 3 exércitos, limitados ao número de dados usados no ataque e aos exércitos restantes. Escolha a ocupação antes de lançar os dados. Eliminar um jogador transfere suas cartas ao vencedor do combate.</p><h3>04 · Remanejamento</h3><p>Após os ataques, mova exércitos entre territórios seus que sejam vizinhos. Exércitos recebidos nesta fase não podem ser movidos novamente. Sempre deixe um na origem. Ao encerrar o turno, você recebe uma carta se conquistou pelo menos um território, independentemente de quantas conquistas fez.</p><h3>05 · Cartas</h3><p>Troque 3 cartas de símbolos iguais ou 3 diferentes; curingas substituem qualquer símbolo. As trocas globais valem 4, 6, 8, 10, 12, 15 e, depois, mais 5 por troca. Cada carta de território que você controla adiciona 2 exércitos diretamente nele. Troque durante os reforços; com 5 ou mais cartas, a troca é obrigatória antes de atacar.</p><h3>06 · Solo e salas on-line</h3><p>No solo, seus oponentes são automáticos e o progresso fica salvo neste navegador. Nas salas, o anfitrião sincroniza e valida as jogadas. Mantenha a aba dele aberta. Os objetivos e cartas dos outros jogadores não são enviados aos convidados; o anfitrião é uma autoridade de confiança e tem acesso técnico ao estado completo.</p><p>O modo on-line usa o servidor público de sinalização do PeerJS e WebRTC. Algumas redes corporativas ou móveis bloqueiam conexões diretas e podem exigir infraestrutura TURN própria. Não há contas, chat, migração de anfitrião nem recuperação da sala após o anfitrião fechar a página. Um convidado pode reconectar à mesma sala usando a mesma aba e navegador.</p></div>`;
+    content = `<span class="eyebrow">MANUAL DO COMANDANTE</span><h2>Estratégia antes da sorte.</h2><div class="rules"><p>Adaptação independente das mecânicas clássicas de conquista territorial de WAR. Não é um produto oficial da Grow. O mapa usa contornos geográficos Natural Earth e divisões estratégicas esquemáticas. As rotas e a lista de vizinhos definem as fronteiras válidas; países desenhados lado a lado não alteram as regras de vizinhança.</p><h3>01 · Preparação e objetivo</h3><p>3 a 6 jogadores, 42 territórios e 6 continentes. Cada jogador recebe um objetivo secreto: conquistar continentes, 24 territórios, 18 territórios com 2 exércitos em cada um, ou eliminar pessoalmente os exércitos de uma cor. Vence quem cumprir seu objetivo, verificado após cada ação.</p><p>Nesta edição, a distribuição inicial é automática e aleatória: um exército em cada território, depois completam-se 35, 30, 25 ou 20 exércitos por jogador em mesas de 3, 4, 5 ou 6 participantes. Se o objetivo indicar sua própria cor ou uma cor ausente, ele será substituído por conquistar 24 territórios. Se outro jogador eliminar sua cor-alvo, seu objetivo também passa a ser conquistar 24 territórios.</p><h3>02 · Reforços e continentes</h3><p>No início do turno, receba metade dos seus territórios, arredondada para baixo, com mínimo de 3 exércitos. O domínio completo de continentes gera reservas extras, que devem ser usadas no próprio continente: América do Norte +5, América do Sul +2, Europa +5, África +3, Ásia +7, Oceania +2. Distribua todos os reforços antes de atacar.</p><h3>03 · Combates</h3><p>Ataque apenas territórios inimigos vizinhos. Sempre deixe ao menos um exército na origem. O atacante lança até 3 dados (limitados aos exércitos menos um); o defensor lança até 3, limitados aos seus exércitos. Compare os maiores dados em pares: quem tiver o menor perde um exército. Empates favorecem a defesa. Você pode atacar quantas vezes quiser ou pular esta fase.</p><p>Ao conquistar, mova de 1 a 3 exércitos, limitados ao número de dados usados no ataque e aos exércitos restantes. Escolha a ocupação antes de lançar os dados. Eliminar um jogador transfere suas cartas ao vencedor do combate.</p><h3>04 · Remanejamento</h3><p>Após os ataques, mova exércitos entre territórios seus que sejam vizinhos. Exércitos recebidos nesta fase não podem ser movidos novamente. Sempre deixe um na origem. Ao encerrar o turno, você recebe uma carta se conquistou pelo menos um território, independentemente de quantas conquistas fez.</p><h3>05 · Cartas</h3><p>Troque 3 cartas de símbolos iguais ou 3 diferentes; curingas substituem qualquer símbolo. As trocas globais valem 4, 6, 8, 10, 12, 15 e, depois, mais 5 por troca. Cada carta de território que você controla adiciona 2 exércitos diretamente nele. Troque durante os reforços; com 5 ou mais cartas, a troca é obrigatória antes de atacar.</p><h3>06 · Solo e salas on-line</h3><p>No solo, seus oponentes são automáticos e o progresso fica salvo neste navegador. Nas salas, o anfitrião sincroniza e valida as jogadas. Mantenha a aba dele aberta. Os objetivos e cartas dos outros jogadores não são enviados aos convidados; o anfitrião é uma autoridade de confiança e tem acesso técnico ao estado completo.</p><p>O modo on-line usa o servidor público de sinalização do PeerJS e WebRTC. Algumas redes corporativas ou móveis bloqueiam conexões diretas e podem exigir infraestrutura TURN própria. Não há contas, chat, migração de anfitrião nem recuperação da sala após o anfitrião fechar a página. Um convidado pode reconectar à mesma sala usando a mesma aba e navegador.</p></div>`;
   else if (modal === "leave")
     content = `<span class="eyebrow">PAUSA NA CONQUISTA</span><h2>Sair da mesa?</h2><p class="muted">${mode === "solo" ? "Sua campanha está salva neste navegador. Você poderá continuar pelo início." : room?.host ? "Você é o anfitrião. Sair encerrará a conexão de todos e a partida não poderá ser recuperada." : "Você será desconectado. Pode entrar novamente enquanto o anfitrião mantiver a sala aberta."}</p><button class="primary wide" data-action="confirm-leave">Sair da mesa</button>`;
   else
@@ -273,7 +287,61 @@ function chooseTerritory(id) {
   }
   render();
 }
+function bindMapNavigation() {
+  const viewport = document.querySelector(".map-scroll");
+  if (!viewport) return;
+  let start = null,
+    dragged = false;
+  viewport.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    start = {
+      x: e.clientX,
+      y: e.clientY,
+      left: viewport.scrollLeft,
+      top: viewport.scrollTop,
+    };
+    dragged = false;
+  });
+  viewport.addEventListener("pointermove", (e) => {
+    if (!start) return;
+    const dx = e.clientX - start.x,
+      dy = e.clientY - start.y;
+    if (!dragged && Math.hypot(dx, dy) > 6) {
+      dragged = true;
+      viewport.setPointerCapture(e.pointerId);
+      viewport.classList.add("panning");
+    }
+    if (dragged) {
+      e.preventDefault();
+      viewport.scrollTo(start.left - dx, start.top - dy);
+    }
+  });
+  viewport.addEventListener("pointerup", () => {
+    start = null;
+    viewport.classList.remove("panning");
+  });
+  viewport.addEventListener("pointercancel", () => {
+    start = null;
+    dragged = false;
+    viewport.classList.remove("panning");
+  });
+  viewport.addEventListener("pointerleave", (e) => {
+    if (!viewport.hasPointerCapture(e.pointerId)) start = null;
+  });
+  viewport.addEventListener(
+    "click",
+    (e) => {
+      if (dragged) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        dragged = false;
+      }
+    },
+    true,
+  );
+}
 function bind() {
+  bindMapNavigation();
   document
     .querySelectorAll("[data-action]")
     .forEach((el) =>
@@ -285,12 +353,14 @@ function bind() {
       render();
     }),
   );
-  document.querySelectorAll("[data-territory]").forEach((el) => {
-    el.addEventListener("click", () => chooseTerritory(el.dataset.territory));
+  document.querySelectorAll("[data-territory], [data-marker]").forEach((el) => {
+    el.addEventListener("click", () =>
+      chooseTerritory(el.dataset.territory || el.dataset.marker),
+    );
     el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        chooseTerritory(el.dataset.territory);
+        chooseTerritory(el.dataset.territory || el.dataset.marker);
       }
     });
   });
@@ -446,6 +516,16 @@ async function handle(action) {
       } catch {
         notify(`Copie este convite: ${url.href}`);
       }
+    }
+    if (["zoom-in", "zoom-out", "zoom-reset"].includes(action)) {
+      mapZoom =
+        action === "zoom-reset"
+          ? 1
+          : Math.max(
+              1,
+              Math.min(2.5, mapZoom + (action === "zoom-in" ? 0.5 : -0.5)),
+            );
+      render();
     }
     if (action === "connections") {
       showConnections = !showConnections;
