@@ -52,6 +52,97 @@ class MemoryPeer extends EventEmitter {
 }
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
+class WaitingConnection extends EventEmitter {
+  open = false;
+  closed = false;
+  messages = [];
+  send(data) {
+    this.messages.push(data);
+  }
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.open = false;
+    this.emit("close");
+  }
+}
+class WaitingPeer extends EventEmitter {
+  constructor() {
+    super();
+    queueMicrotask(() => this.emit("open"));
+  }
+  connect() {
+    return (this.channel = new WaitingConnection());
+  }
+  destroy() {
+    this.channel?.close();
+  }
+}
+function testStorage(t) {
+  const values = new Map();
+  Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    value: {
+      getItem: (k) => values.get(k) || null,
+      setItem: (k, v) => values.set(k, v),
+    },
+  });
+  t.after(() => delete globalThis.sessionStorage);
+}
+test("host allows slow negotiation before starting the hello deadline", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const host = new Room(() => {}, WaitingPeer);
+  t.after(() => host.close());
+  host.create("Host");
+  await settle();
+  const c = new WaitingConnection();
+  host.peer.emit("connection", c);
+  t.mock.timers.tick(19000);
+  assert.equal(c.closed, false);
+  c.open = true;
+  c.emit("open");
+  t.mock.timers.tick(9000);
+  assert.equal(c.closed, false);
+  c.emit("data", { type: "hello", name: "Guest", token: crypto.randomUUID() });
+  t.mock.timers.tick(60000);
+  assert.equal(c.closed, false);
+  assert.equal(host.members.length, 2);
+});
+test("guest does not fail at 18 seconds and closes a timed-out attempt only once", async (t) => {
+  testStorage(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const events = [];
+  const guest = new Room(
+    (type, data) => events.push({ type, data }),
+    WaitingPeer,
+  );
+  t.after(() => guest.close());
+  guest.join("abcdef1234", "Guest");
+  await settle();
+  t.mock.timers.tick(18000);
+  assert.equal(events.filter((e) => e.type === "error").length, 0);
+  t.mock.timers.tick(42001);
+  assert.equal(events.filter((e) => e.type === "error").length, 1);
+  assert.equal(guest.connection.closed, true);
+  t.mock.timers.tick(60000);
+  assert.equal(events.filter((e) => e.type === "error").length, 1);
+});
+test("leaving a pending room cancels late timeout messages", async (t) => {
+  testStorage(t);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const events = [];
+  const guest = new Room(
+    (type, data) => events.push({ type, data }),
+    WaitingPeer,
+  );
+  guest.join("abcdef1234", "Guest");
+  await settle();
+  guest.close();
+  t.mock.timers.tick(120000);
+  assert.equal(events.filter((e) => e.type === "error").length, 0);
+  assert.equal(guest.timers.size, 0);
+});
+
 test("room protocol: identity, private snapshots, authoritative actions and reconnect", async (t) => {
   const storage = new Map();
   Object.defineProperty(globalThis, "sessionStorage", {

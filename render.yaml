@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: war-game-relay
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: ALLOWED_ORIGINS
+        value: https://guinorbona.github.io

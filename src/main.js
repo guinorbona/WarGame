@@ -18,6 +18,7 @@ import {
   tradeSets,
 } from "./engine.js";
 import { Room } from "./network.js";
+import { normalizeRelayUrl } from "./relay-peer.js";
 
 const app = document.querySelector("#app");
 const escape = (s) =>
@@ -45,6 +46,12 @@ let state = null,
 let name = localStorage.getItem("war-name") || "Comandante";
 const query = new URLSearchParams(location.search);
 let invite = query.get("room") || "";
+let relayUrl = query.has("relay")
+  ? query.get("relay")
+  : (localStorage.getItem("war-relay-url") ??
+    import.meta.env.VITE_RELAY_URL ??
+    "");
+let connectionStatus = null;
 const phases = { reinforce: "Reforçar", attack: "Atacar", move: "Remanejar" };
 const phaseDescription = {
   reinforce: "Distribua seus exércitos antes de avançar.",
@@ -112,7 +119,7 @@ function mapView(decorative = false) {
   });
 }
 function lobbyView() {
-  return `<main class="lobby-main"><button class="text-button" data-action="leave">← Voltar ao início</button><div class="eyebrow">SALA DE ESTRATÉGIA</div><h1>Mobilize seu <em>esquadrão.</em></h1><p class="muted">${lobby ? "Compartilhe o convite. A conquista é melhor em boa companhia." : "Conectando à central de operações…"}</p>${lobby ? `<div class="lobby-layout"><section class="panel"><div class="panel-title">COMANDANTES <span>${lobby.members.length} / 6</span></div>${lobby.members.map((p, i) => `<div class="lobby-player"><span class="avatar" style="--player:${COLORS[i]}">${escape(p.name[0].toUpperCase())}</span><strong>${escape(p.name)}</strong><span class="muted">${!p.online ? "Desconectado" : i === 0 ? "Anfitrião" : "Pronto"}</span></div>`).join("")}${lobby.host ? `<label class="field-label" for="bot-count">ADVERSÁRIOS AUTOMÁTICOS</label><select id="bot-count">${Array.from({ length: 7 - lobby.members.length }, (_, i) => `<option value="${i}" ${i === Math.max(0, 3 - lobby.members.length) ? "selected" : ""}>${i} ${i === 1 ? "adversário" : "adversários"}</option>`).join("")}</select><button class="primary wide" data-action="start-online">Iniciar partida →</button><p class="fine">3 a 6 participantes, contando os adversários automáticos. Todos os humanos precisam estar conectados.</p>` : '<p class="waiting"><span class="radar-dot"></span> Aguardando o anfitrião iniciar a partida.</p>'}</section><section class="invite-panel"><span class="eyebrow">CANAL DE MOBILIZAÇÃO</span><h2>Convide seus amigos.</h2><label class="field-label">CÓDIGO DA SALA</label><div class="room-code">${escape(lobby.code)}</div><button class="primary wide" data-action="copy">Copiar link de convite ↗</button><p class="fine">Mantenha esta aba aberta. A sala usa conexão direta entre os participantes. Se o anfitrião sair, a partida será interrompida.</p></section></div>` : ""}</main>`;
+  return `<main class="lobby-main"><button class="text-button" data-action="leave">← Voltar ao início</button><div class="eyebrow">SALA DE ESTRATÉGIA</div><h1>Mobilize seu <em>esquadrão.</em></h1><p class="muted">${lobby ? "Compartilhe o convite. A conquista é melhor em boa companhia." : escape(connectionStatus?.message || "Conectando à central de operações…")}</p>${lobby ? `<div class="lobby-layout"><section class="panel"><div class="panel-title">COMANDANTES <span>${lobby.members.length} / 6</span></div>${lobby.members.map((p, i) => `<div class="lobby-player"><span class="avatar" style="--player:${COLORS[i]}">${escape(p.name[0].toUpperCase())}</span><strong>${escape(p.name)}</strong><span class="muted">${!p.online ? "Desconectado" : i === 0 ? "Anfitrião" : "Pronto"}</span></div>`).join("")}${lobby.host ? `<label class="field-label" for="bot-count">ADVERSÁRIOS AUTOMÁTICOS</label><select id="bot-count">${Array.from({ length: 7 - lobby.members.length }, (_, i) => `<option value="${i}" ${i === Math.max(0, 3 - lobby.members.length) ? "selected" : ""}>${i} ${i === 1 ? "adversário" : "adversários"}</option>`).join("")}</select><button class="primary wide" data-action="start-online">Iniciar partida →</button><p class="fine">3 a 6 participantes, contando os adversários automáticos. Todos os humanos precisam estar conectados.</p>` : '<p class="waiting"><span class="radar-dot"></span> Aguardando o anfitrião iniciar a partida.</p>'}</section><section class="invite-panel"><span class="eyebrow">CANAL DE MOBILIZAÇÃO</span><h2>Convide seus amigos.</h2><label class="field-label">CÓDIGO DA SALA</label><div class="room-code">${escape(lobby.code)}</div><button class="primary wide" data-action="copy">Copiar link de convite ↗</button><p class="fine">Mantenha esta aba aberta. ${room?.relayUrl ? "A sala está usando o servidor de conexão." : "A sala usa conexão direta entre os participantes."} Se o anfitrião sair, a partida será interrompida.</p></section></div>` : `<section class="panel connection-progress" aria-live="polite"><span class="eyebrow">${connectionStatus?.stage === "error" ? "CONEXÃO INTERROMPIDA" : "ESTABELECENDO CONEXÃO"}</span><p class="fine">${connectionStatus?.stage === "error" ? "Você pode tentar novamente ou informar um servidor de sala para jogar entre redes diferentes." : "Mantenha esta aba aberta enquanto localizamos o anfitrião e confirmamos sua entrada."}</p><button class="secondary wide" data-action="retry-connection">Alterar conexão / tentar novamente</button></section>`}</main>`;
 }
 function gameView() {
   const current = state.players[state.current],
@@ -189,15 +196,24 @@ function diceView() {
 function modalView() {
   let content = "";
   if (modal === "rules")
-    content = `<span class="eyebrow">MANUAL DO COMANDANTE</span><h2>Estratégia antes da sorte.</h2><div class="rules"><p>Adaptação independente das mecânicas clássicas de conquista territorial de WAR. Não é um produto oficial da Grow. O mapa usa contornos geográficos Natural Earth e divisões estratégicas esquemáticas. As rotas e a lista de vizinhos definem as fronteiras válidas; países desenhados lado a lado não alteram as regras de vizinhança.</p><h3>01 · Preparação e objetivo</h3><p>3 a 6 jogadores, 42 territórios e 6 continentes. Cada jogador recebe um objetivo secreto: conquistar continentes, 24 territórios, 18 territórios com 2 exércitos em cada um, ou eliminar pessoalmente os exércitos de uma cor. Vence quem cumprir seu objetivo, verificado após cada ação.</p><p>Nesta edição, a distribuição inicial é automática e aleatória: um exército em cada território, depois completam-se 35, 30, 25 ou 20 exércitos por jogador em mesas de 3, 4, 5 ou 6 participantes. Se o objetivo indicar sua própria cor ou uma cor ausente, ele será substituído por conquistar 24 territórios. Se outro jogador eliminar sua cor-alvo, seu objetivo também passa a ser conquistar 24 territórios.</p><h3>02 · Reforços e continentes</h3><p>No início do turno, receba metade dos seus territórios, arredondada para baixo, com mínimo de 3 exércitos. O domínio completo de continentes gera reservas extras, que devem ser usadas no próprio continente: América do Norte +5, América do Sul +2, Europa +5, África +3, Ásia +7, Oceania +2. Distribua todos os reforços antes de atacar.</p><h3>03 · Combates</h3><p>Ataque apenas territórios inimigos vizinhos. Sempre deixe ao menos um exército na origem. O atacante lança até 3 dados (limitados aos exércitos menos um); o defensor lança até 3, limitados aos seus exércitos. Compare os maiores dados em pares: quem tiver o menor perde um exército. Empates favorecem a defesa. Você pode atacar quantas vezes quiser ou pular esta fase.</p><p>Ao conquistar, mova de 1 a 3 exércitos, limitados ao número de dados usados no ataque e aos exércitos restantes. Escolha a ocupação antes de lançar os dados. Eliminar um jogador transfere suas cartas ao vencedor do combate.</p><h3>04 · Remanejamento</h3><p>Após os ataques, mova exércitos entre territórios seus que sejam vizinhos. Exércitos recebidos nesta fase não podem ser movidos novamente. Sempre deixe um na origem. Ao encerrar o turno, você recebe uma carta se conquistou pelo menos um território, independentemente de quantas conquistas fez.</p><h3>05 · Cartas</h3><p>Troque 3 cartas de símbolos iguais ou 3 diferentes; curingas substituem qualquer símbolo. As trocas globais valem 4, 6, 8, 10, 12, 15 e, depois, mais 5 por troca. Cada carta de território que você controla adiciona 2 exércitos diretamente nele. Troque durante os reforços; com 5 ou mais cartas, a troca é obrigatória antes de atacar.</p><h3>06 · Solo e salas on-line</h3><p>No solo, seus oponentes são automáticos e o progresso fica salvo neste navegador. Nas salas, o anfitrião sincroniza e valida as jogadas. Mantenha a aba dele aberta. Os objetivos e cartas dos outros jogadores não são enviados aos convidados; o anfitrião é uma autoridade de confiança e tem acesso técnico ao estado completo.</p><p>O modo on-line usa o servidor público de sinalização do PeerJS e WebRTC. Algumas redes corporativas ou móveis bloqueiam conexões diretas e podem exigir infraestrutura TURN própria. Não há contas, chat, migração de anfitrião nem recuperação da sala após o anfitrião fechar a página. Um convidado pode reconectar à mesma sala usando a mesma aba e navegador.</p></div>`;
+    content = `<span class="eyebrow">MANUAL DO COMANDANTE</span><h2>Estratégia antes da sorte.</h2><div class="rules"><p>Adaptação independente das mecânicas clássicas de conquista territorial de WAR. Não é um produto oficial da Grow. O mapa usa contornos geográficos Natural Earth e divisões estratégicas esquemáticas. As rotas e a lista de vizinhos definem as fronteiras válidas; países desenhados lado a lado não alteram as regras de vizinhança.</p><h3>01 · Preparação e objetivo</h3><p>3 a 6 jogadores, 42 territórios e 6 continentes. Cada jogador recebe um objetivo secreto: conquistar continentes, 24 territórios, 18 territórios com 2 exércitos em cada um, ou eliminar pessoalmente os exércitos de uma cor. Vence quem cumprir seu objetivo, verificado após cada ação.</p><p>Nesta edição, a distribuição inicial é automática e aleatória: um exército em cada território, depois completam-se 35, 30, 25 ou 20 exércitos por jogador em mesas de 3, 4, 5 ou 6 participantes. Se o objetivo indicar sua própria cor ou uma cor ausente, ele será substituído por conquistar 24 territórios. Se outro jogador eliminar sua cor-alvo, seu objetivo também passa a ser conquistar 24 territórios.</p><h3>02 · Reforços e continentes</h3><p>No início do turno, receba metade dos seus territórios, arredondada para baixo, com mínimo de 3 exércitos. O domínio completo de continentes gera reservas extras, que devem ser usadas no próprio continente: América do Norte +5, América do Sul +2, Europa +5, África +3, Ásia +7, Oceania +2. Distribua todos os reforços antes de atacar.</p><h3>03 · Combates</h3><p>Ataque apenas territórios inimigos vizinhos. Sempre deixe ao menos um exército na origem. O atacante lança até 3 dados (limitados aos exércitos menos um); o defensor lança até 3, limitados aos seus exércitos. Compare os maiores dados em pares: quem tiver o menor perde um exército. Empates favorecem a defesa. Você pode atacar quantas vezes quiser ou pular esta fase.</p><p>Ao conquistar, mova de 1 a 3 exércitos, limitados ao número de dados usados no ataque e aos exércitos restantes. Escolha a ocupação antes de lançar os dados. Eliminar um jogador transfere suas cartas ao vencedor do combate.</p><h3>04 · Remanejamento</h3><p>Após os ataques, mova exércitos entre territórios seus que sejam vizinhos. Exércitos recebidos nesta fase não podem ser movidos novamente. Sempre deixe um na origem. Ao encerrar o turno, você recebe uma carta se conquistou pelo menos um território, independentemente de quantas conquistas fez.</p><h3>05 · Cartas</h3><p>Troque 3 cartas de símbolos iguais ou 3 diferentes; curingas substituem qualquer símbolo. As trocas globais valem 4, 6, 8, 10, 12, 15 e, depois, mais 5 por troca. Cada carta de território que você controla adiciona 2 exércitos diretamente nele. Troque durante os reforços; com 5 ou mais cartas, a troca é obrigatória antes de atacar.</p><h3>06 · Solo e salas on-line</h3><p>No solo, seus oponentes são automáticos e o progresso fica salvo neste navegador. Nas salas, o anfitrião sincroniza e valida as jogadas. Mantenha a aba dele aberta. Os objetivos e cartas dos outros jogadores não são enviados aos convidados; o anfitrião é uma autoridade de confiança e tem acesso técnico ao estado completo.</p><p>Sem servidor configurado, o modo on-line usa o servidor público de sinalização do PeerJS e WebRTC. A opção Servidor de sala usa uma conexão HTTPS/WebSocket para evitar o bloqueio de conexões diretas entre redes diferentes. Algumas redes corporativas ou móveis bloqueiam conexões diretas e podem exigir infraestrutura TURN própria. Não há contas, chat, migração de anfitrião nem recuperação da sala após o anfitrião fechar a página. Um convidado pode reconectar à mesma sala usando a mesma aba e navegador.</p></div>`;
   else if (modal === "leave")
     content = `<span class="eyebrow">PAUSA NA CONQUISTA</span><h2>Sair da mesa?</h2><p class="muted">${mode === "solo" ? "Sua campanha está salva neste navegador. Você poderá continuar pelo início." : room?.host ? "Você é o anfitrião. Sair encerrará a conexão de todos e a partida não poderá ser recuperada." : "Você será desconectado. Pode entrar novamente enquanto o anfitrião mantiver a sala aberta."}</p><button class="primary wide" data-action="confirm-leave">Sair da mesa</button>`;
   else
-    content = `<span class="eyebrow">${modal === "solo" ? "CAMPANHA SOLO" : modal === "create" ? "JOGUE COM AMIGOS" : "SEU LUGAR À MESA"}</span><h2>${modal === "solo" ? "Prepare sua estratégia." : modal === "create" ? "Uma nova sala." : "Entre na disputa."}</h2><form id="setup-form"><label class="field-label" for="player-name">SEU NOME</label><input id="player-name" maxlength="20" required value="${escape(name)}" autocomplete="nickname"/>${modal === "solo" ? '<label class="field-label" for="players">PARTICIPANTES</label><select id="players"><option value="3">Você + 2 adversários automáticos</option><option value="4">Você + 3 adversários automáticos</option><option value="5">Você + 4 adversários automáticos</option><option value="6">Você + 5 adversários automáticos</option></select><p class="fine">Territórios e exércitos iniciais são distribuídos automaticamente. Sua campanha será salva neste navegador.</p>' : modal === "join" ? `<label class="field-label" for="room-code">CÓDIGO DA SALA</label><input id="room-code" required minlength="10" maxlength="10" pattern="[a-fA-F0-9]{10}" value="${escape(invite)}" placeholder="Ex.: a1b2c3d4e5" autocomplete="off"/><p class="fine">O anfitrião precisa estar com a sala aberta.</p>` : '<p class="fine">Crie a sala e envie o link para até 5 amigos. Você também pode completar a mesa com adversários automáticos.</p>'}<button type="submit" class="primary wide">${modal === "solo" ? "Iniciar campanha" : modal === "create" ? "Criar minha sala" : "Entrar na sala"} →</button></form>`;
+    content = `<span class="eyebrow">${modal === "solo" ? "CAMPANHA SOLO" : modal === "create" ? "JOGUE COM AMIGOS" : "SEU LUGAR À MESA"}</span><h2>${modal === "solo" ? "Prepare sua estratégia." : modal === "create" ? "Uma nova sala." : "Entre na disputa."}</h2><form id="setup-form"><label class="field-label" for="player-name">SEU NOME</label><input id="player-name" maxlength="20" required value="${escape(name)}" autocomplete="nickname"/>${modal === "solo" ? '<label class="field-label" for="players">PARTICIPANTES</label><select id="players"><option value="3">Você + 2 adversários automáticos</option><option value="4">Você + 3 adversários automáticos</option><option value="5">Você + 4 adversários automáticos</option><option value="6">Você + 5 adversários automáticos</option></select><p class="fine">Territórios e exércitos iniciais são distribuídos automaticamente. Sua campanha será salva neste navegador.</p>' : modal === "join" ? `<label class="field-label" for="room-code">CÓDIGO DA SALA</label><input id="room-code" required minlength="10" maxlength="10" pattern="[a-fA-F0-9]{10}" value="${escape(invite)}" placeholder="Ex.: a1b2c3d4e5" autocomplete="off"/><p class="fine">O anfitrião precisa estar com a sala aberta.</p>` : '<p class="fine">Crie a sala e envie o link para até 5 amigos. Você também pode completar a mesa com adversários automáticos.</p>'}${modal !== "solo" ? `<details class="network-options" ${relayUrl ? "open" : ""}><summary>Servidor de sala · redes diferentes</summary><label class="field-label" for="relay-url">ENDEREÇO DO SERVIDOR (OPCIONAL)</label><input id="relay-url" type="url" value="${escape(relayUrl)}" placeholder="https://seu-servidor.onrender.com" autocomplete="off"/><p class="fine">Com um servidor de sala, cada aparelho se conecta ao mesmo serviço, sem exigir conexão direta entre as redes. O convite inclui esse endereço automaticamente. Sem endereço, usamos a conexão direta. <a href="https://github.com/guinorbona/WarGame/blob/main/server/README.md" target="_blank" rel="noopener noreferrer">Como ativar o servidor de sala →</a></p></details>` : ""}<button type="submit" class="primary wide">${modal === "solo" ? "Iniciar campanha" : modal === "create" ? "Criar minha sala" : "Entrar na sala"} →</button></form>`;
   return `<div class="modal-backdrop"><section class="modal ${modal === "rules" ? "rules-modal" : ""}" role="dialog" aria-modal="true" aria-label="${modal === "rules" ? "Regras do jogo" : "Configuração da partida"}"><button class="modal-close" data-action="close-modal" aria-label="Fechar">×</button>${content}</section></div>`;
 }
 function onRoomEvent(type, data) {
-  if (type === "error" || type === "notice") notify(data);
+  if (type === "status") {
+    connectionStatus = data;
+    if (mode === "lobby" && !state) render();
+  }
+  if (type === "error") {
+    connectionStatus = { stage: "error", message: data };
+    if (mode === "lobby" && !state) render();
+    notify(data);
+  }
+  if (type === "notice") notify(data);
   if (type === "identity") me = data;
   if (type === "lobby") {
     lobby = data;
@@ -378,8 +394,18 @@ function bind() {
     }
     const code = document.querySelector("#room-code")?.value;
     const create = modal === "create";
+    try {
+      relayUrl = normalizeRelayUrl(
+        document.querySelector("#relay-url")?.value || "",
+      );
+    } catch (err) {
+      notify(err.message);
+      return;
+    }
+    localStorage.setItem("war-relay-url", relayUrl);
     room?.close();
-    room = new Room(onRoomEvent);
+    room = new Room(onRoomEvent, undefined, { relayUrl });
+    connectionStatus = null;
     mode = "lobby";
     lobby = null;
     modal = null;
@@ -505,11 +531,24 @@ async function handle(action) {
       render();
       scheduleBot();
     }
+    if (action === "retry-connection") {
+      const wasHost = room?.host;
+      invite = room?.code || invite;
+      room?.close();
+      room = null;
+      state = null;
+      lobby = null;
+      connectionStatus = null;
+      mode = "home";
+      modal = wasHost ? "create" : "join";
+      render();
+    }
     if (action === "copy") {
       const url = new URL(location.href);
       url.search = "";
       url.hash = "";
       url.searchParams.set("room", room.code);
+      if (room.relayUrl) url.searchParams.set("relay", room.relayUrl);
       try {
         await navigator.clipboard.writeText(url.href);
         notify("Link de convite copiado. Envie para seus amigos!");

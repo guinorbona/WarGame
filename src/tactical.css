@@ -9,6 +9,21 @@
   color: #e4e9e6;
   background: #090e11;
 }
+.network-options {
+  margin-top: 18px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  background: #0a1418;
+}
+.network-options summary {
+  cursor: pointer;
+  font: 10px var(--mono);
+  color: var(--accent);
+}
+.connection-progress {
+  max-width: 600px;
+  margin-top: 25px;
+}
 body {
   background-image:
     radial-gradient(ellipse at 75% 12%, #354c4030, transparent 50%),

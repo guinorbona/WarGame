@@ -48,9 +48,15 @@ Fontes são empacotadas com a aplicação; o solo não consulta serviços extern
 
 O workflow está em `.github/workflows/pages.yml`. Nenhuma chave de API é necessária para o modo padrão. Se o repositório for privado, a disponibilidade de Pages depende do plano do GitHub.
 
+## Conexão entre redes diferentes
+
+Quando a conexão direta não funciona entre aparelhos ou redes diferentes, use **Servidor de sala**. O backend e a configuração de implantação estão prontos em `server/` e `render.yaml`, mas o serviço precisa ser publicado separadamente do GitHub Pages.
+
+Siga o [guia de publicação do servidor](server/README.md). Depois, cole a URL em **Criar uma sala → Servidor de sala · redes diferentes** e compartilhe o novo convite. Esse modo usa HTTPS/WebSocket e não depende de STUN/TURN. O formulário mostra o andamento da conexão e permite tentar novamente. O prazo de negociação é de até 60 segundos; o prazo de identificação de 10 segundos começa somente depois que o canal abre.
+
 ## Rede on-line e limites
 
-O site é estático. O **PeerJS** usa `0.peerjs.com` (HTTPS/WebSocket, porta 443) para sinalização e **WebRTC DataChannel** para as mensagens. A configuração padrão de ICE da biblioteca utiliza STUN do Google e servidores públicos TURN do PeerJS. A disponibilidade desses serviços e a passagem por firewalls/NAT não são garantidas; para operação com SLA, configure infraestrutura própria.
+Sem servidor de sala configurado, o site usa **PeerJS** com `0.peerjs.com` (HTTPS/WebSocket, porta 443) para sinalização e **WebRTC DataChannel** para as mensagens. A configuração padrão de ICE da biblioteca utiliza STUN do Google e servidores públicos TURN do PeerJS. A disponibilidade desses serviços e a passagem por firewalls/NAT não são garantidas; para operação com SLA, configure infraestrutura própria.
 
 O anfitrião é a autoridade: valida ações, lança dados e transmite a cada convidado uma visão sem as cartas e objetivos secretos dos demais. O objetivo do vencedor é revelado ao terminar. Não é um servidor antitrapaça: o anfitrião tem acesso técnico ao estado completo, portanto jogue com pessoas de confiança.
 
@@ -103,4 +109,4 @@ O mapa utiliza dados Natural Earth 1:110m, distribuídos em domínio público pe
 | `tests/engine.test.js`    | Regras e simulações determinísticas                      |
 | `tests/app.spec.js`       | Fluxos no navegador e comunicação WebRTC                 |
 
-Não há backend próprio, telemetria ou envio da campanha solo. Para jogar on-line, os participantes se conectam aos serviços de sinalização/ICE e ao anfitrião.
+Há um backend opcional de salas em `server/`; ele é separado do site estático. Não há telemetria ou envio da campanha solo. Para jogar on-line, os participantes se conectam aos serviços de sinalização/ICE e ao anfitrião.

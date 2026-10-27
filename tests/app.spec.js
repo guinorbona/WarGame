@@ -152,57 +152,74 @@ test("tactical map zoom, drag, keyboard selection and saved-game compatibility",
   ).toBeGreaterThan(initialWidth * 1.4);
 });
 
-test("real WebRTC: create room, invite, sync a move, reject out-of-turn, reconnect", async ({
-  browser,
-}) => {
-  const hostContext = await browser.newContext(),
-    guestContext = await browser.newContext();
-  const host = await hostContext.newPage(),
-    guest = await guestContext.newPage();
-  host.on("pageerror", (e) => console.error("host:", e.message));
-  guest.on("pageerror", (e) => console.error("guest:", e.message));
-  try {
-    await host.goto("/");
-    await host.locator('[data-action="create-modal"]').click();
-    await host.locator("#player-name").fill("Anfitrião");
-    await host.getByRole("button", { name: "Criar minha sala →" }).click();
-    await expect(host.locator(".room-code")).toBeVisible();
-    const code = await host.locator(".room-code").textContent();
-    await guest.goto(`/?room=${code}`);
-    await guest.locator("#player-name").fill("Convidado");
-    await guest.getByRole("button", { name: "Entrar na sala →" }).click();
-    await expect(host.locator(".lobby-player")).toHaveCount(2, {
-      timeout: 20000,
-    });
-    await expect(guest.locator(".lobby-player")).toHaveCount(2);
-    await host.locator("#bot-count").selectOption("1");
-    await host.locator('[data-action="start-online"]').click();
-    await expect(host.locator(".territory")).toHaveCount(42);
-    await expect(guest.locator(".territory")).toHaveCount(42);
-    await expect(guest.locator(".player-chip").nth(1)).toContainText("VOCÊ");
-    await expect(guest.locator('[data-action="next"]')).toHaveCount(0);
-    const source = host
-      .locator("[data-marker]")
-      .filter({ has: host.locator('circle[fill="#db775e"]') })
-      .first();
-    const id = await source.getAttribute("data-marker");
-    await source.click();
-    const before = Number(
-      await guest.locator(`[data-marker="${id}"] .army-count`).textContent(),
-    );
-    await host.locator('[data-action="reinforce"]').click();
-    await expect(guest.locator(`[data-marker="${id}"] .army-count`)).toHaveText(
-      String(before + 1),
-    );
-    await guest.reload();
-    await guest.getByRole("button", { name: "Entrar na sala →" }).click();
-    await expect(guest.locator(".territory")).toHaveCount(42);
-    await expect(guest.locator(`[data-marker="${id}"] .army-count`)).toHaveText(
-      String(before + 1),
-    );
-    await expect(guest.locator(".player-chip").nth(1)).toContainText("VOCÊ");
-  } finally {
-    await hostContext.close();
-    await guestContext.close();
-  }
-});
+for (const transport of ["WebRTC", "WebSocket relay"])
+  test(`real ${transport}: create room, invite, sync a move, reject out-of-turn, reconnect`, async ({
+    browser,
+  }) => {
+    const hostContext = await browser.newContext(),
+      guestContext = await browser.newContext();
+    const host = await hostContext.newPage(),
+      guest = await guestContext.newPage();
+    host.on("pageerror", (e) => console.error("host:", e.message));
+    guest.on("pageerror", (e) => console.error("guest:", e.message));
+    try {
+      await host.goto("/");
+      await host.locator('[data-action="create-modal"]').click();
+      await host.locator("#player-name").fill("Anfitrião");
+      if (transport === "WebSocket relay") {
+        await host.locator(".network-options summary").click();
+        await host.locator("#relay-url").fill("ws://127.0.0.1:9002/relay");
+      }
+      await host.getByRole("button", { name: "Criar minha sala →" }).click();
+      await expect(host.locator(".room-code")).toBeVisible();
+      await host.evaluate(() => {
+        Object.defineProperty(navigator.clipboard, "writeText", {
+          configurable: true,
+          value: async (value) => {
+            window.invitationUnderTest = value;
+          },
+        });
+      });
+      await host.locator('[data-action="copy"]').click();
+      const invitation = await host.evaluate(() => window.invitationUnderTest);
+      expect(new URL(invitation).searchParams.get("relay")).toBe(
+        transport === "WebSocket relay" ? "ws://127.0.0.1:9002/relay" : null,
+      );
+      await guest.goto(invitation);
+      await guest.locator("#player-name").fill("Convidado");
+      await guest.getByRole("button", { name: "Entrar na sala →" }).click();
+      await expect(host.locator(".lobby-player")).toHaveCount(2, {
+        timeout: 20000,
+      });
+      await expect(guest.locator(".lobby-player")).toHaveCount(2);
+      await host.locator("#bot-count").selectOption("1");
+      await host.locator('[data-action="start-online"]').click();
+      await expect(host.locator(".territory")).toHaveCount(42);
+      await expect(guest.locator(".territory")).toHaveCount(42);
+      await expect(guest.locator(".player-chip").nth(1)).toContainText("VOCÊ");
+      await expect(guest.locator('[data-action="next"]')).toHaveCount(0);
+      const source = host
+        .locator("[data-marker]")
+        .filter({ has: host.locator('circle[fill="#db775e"]') })
+        .first();
+      const id = await source.getAttribute("data-marker");
+      await source.click();
+      const before = Number(
+        await guest.locator(`[data-marker="${id}"] .army-count`).textContent(),
+      );
+      await host.locator('[data-action="reinforce"]').click();
+      await expect(
+        guest.locator(`[data-marker="${id}"] .army-count`),
+      ).toHaveText(String(before + 1));
+      await guest.reload();
+      await guest.getByRole("button", { name: "Entrar na sala →" }).click();
+      await expect(guest.locator(".territory")).toHaveCount(42);
+      await expect(
+        guest.locator(`[data-marker="${id}"] .army-count`),
+      ).toHaveText(String(before + 1));
+      await expect(guest.locator(".player-chip").nth(1)).toContainText("VOCÊ");
+    } finally {
+      await hostContext.close();
+      await guestContext.close();
+    }
+  });

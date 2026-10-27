@@ -1,9 +1,17 @@
 import Peer from "peerjs";
+import { RelayPeer, normalizeRelayUrl } from "./relay-peer.js";
 import { viewFor } from "./engine.js";
 
 export class Room {
-  constructor(onEvent, PeerImplementation = Peer) {
-    this.PeerImplementation = PeerImplementation;
+  constructor(onEvent, PeerImplementation = Peer, options = {}) {
+    this.options = options;
+    this.relayUrl = normalizeRelayUrl(
+      options.relayUrl ?? (import.meta.env || {}).VITE_RELAY_URL ?? "",
+    );
+    this.PeerImplementation = this.relayUrl ? RelayPeer : PeerImplementation;
+    this.timers = new Set();
+    this.connectionTimeout = options.connectionTimeoutMs || 60000;
+    this.handshakeTimeout = options.handshakeTimeoutMs || 10000;
     this.onEvent = onEvent;
     this.connections = new Map();
     this.members = [];
@@ -13,7 +21,37 @@ export class Room {
   emit(type, payload) {
     if (!this.closed) this.onEvent(type, payload);
   }
+  later(fn, delay) {
+    const timer = setTimeout(() => {
+      this.timers.delete(timer);
+      if (!this.closed) fn();
+    }, delay);
+    this.timers.add(timer);
+    return timer;
+  }
+  cancel(timer) {
+    clearTimeout(timer);
+    this.timers.delete(timer);
+  }
+  status(stage, message) {
+    this.emit("status", { stage, message });
+  }
   init(id) {
+    this.status(
+      "connecting",
+      this.relayUrl ? "Conectando ao servidor da sala…" : "Localizando a sala…",
+    );
+    const readyDeadline = this.later(() => {
+      this.status(
+        "error",
+        "O serviço de conexão não respondeu. Tente novamente.",
+      );
+      this.emit(
+        "error",
+        "O serviço de conexão não respondeu. Tente novamente.",
+      );
+      this.peer?.destroy();
+    }, this.connectionTimeout);
     const env = import.meta.env || {};
     const custom = env.VITE_PEER_HOST
       ? {
@@ -23,29 +61,56 @@ export class Room {
           secure: env.VITE_PEER_SECURE !== "false",
         }
       : {};
-    const rtc = env.VITE_PEER_ICE_SERVERS
-      ? {
-          config: {
-            iceServers: JSON.parse(env.VITE_PEER_ICE_SERVERS),
-          },
-        }
-      : {};
+    const rtc =
+      !this.relayUrl && env.VITE_PEER_ICE_SERVERS
+        ? {
+            config: {
+              iceServers: JSON.parse(env.VITE_PEER_ICE_SERVERS),
+            },
+          }
+        : {};
     this.peer = new this.PeerImplementation(id, {
       debug: 0,
       ...custom,
       ...rtc,
+      ...(this.relayUrl
+        ? {
+            relayUrl: this.relayUrl,
+            WebSocketImplementation: this.options.WebSocketImplementation,
+          }
+        : {}),
     });
-    this.peer.on("error", (e) =>
-      this.emit(
-        "error",
-        e.type === "peer-unavailable"
-          ? "Sala não encontrada. Confira o código e se o anfitrião está conectado."
-          : `Falha na conexão (${e.type}). Tente novamente ou use o modo solo.`,
-      ),
-    );
+    this.peer.on("open", () => this.cancel(readyDeadline));
+    this.peer.on("error", (e) => {
+      this.cancel(readyDeadline);
+      this.pendingJoinCancel?.();
+      const messages = {
+        "peer-unavailable":
+          "Sala não encontrada. Confira o código e se o anfitrião está conectado ao mesmo serviço.",
+        "unavailable-id":
+          "Já existe uma sala com esse código. Crie outra sala.",
+        "room-full": "A sala está cheia.",
+        "relay-unavailable":
+          "O servidor da sala não respondeu. Confira o endereço e tente novamente.",
+      };
+      const message =
+        messages[e.type] ||
+        `Falha no serviço de conexão (${e.type}). Tente novamente.`;
+      this.status("error", message);
+      this.emit("error", message);
+    });
     this.peer.on("disconnected", () => {
       this.emit("notice", "A sinalização desconectou. Tentando reconectar…");
-      if (!this.closed) this.peer.reconnect();
+      if (!this.closed) {
+        try {
+          this.peer.reconnect();
+        } catch {
+          this.emit(
+            "notice",
+            "Não foi possível reconectar ao serviço. Tente entrar novamente.",
+          );
+        }
+      }
     });
   }
   create(name) {
@@ -62,9 +127,16 @@ export class Room {
     );
     this.peer.on("connection", (c) => {
       let member = null;
-      const timeout = setTimeout(() => {
-        if (!member) c.close();
-      }, 10000);
+      // Negotiating ICE is not the same as waiting for the hello message.
+      let timeout = this.later(() => c.close(), this.connectionTimeout);
+      const channelOpened = () => {
+        this.cancel(timeout);
+        timeout = this.later(() => {
+          if (!member) c.close();
+        }, this.handshakeTimeout);
+      };
+      c.on("open", channelOpened);
+      if (c.open) channelOpened();
       c.on("data", (data) => {
         if (!data || typeof data !== "object") return;
         if (!member) {
@@ -84,7 +156,7 @@ export class Room {
                   ? "A partida já começou."
                   : "A sala está cheia.",
               });
-              setTimeout(() => c.close(), 200);
+              this.later(() => c.close(), 200);
               return;
             }
             member = {
@@ -95,7 +167,7 @@ export class Room {
             };
             this.members.push(member);
           }
-          clearTimeout(timeout);
+          this.cancel(timeout);
           const old = this.connections.get(member.token);
           if (old && old !== c) old.close();
           member.online = true;
@@ -115,7 +187,7 @@ export class Room {
         }
       });
       c.on("close", () => {
-        clearTimeout(timeout);
+        this.cancel(timeout);
         if (member && this.connections.get(member.token) === c) {
           member.online = false;
           this.connections.delete(member.token);
@@ -139,37 +211,91 @@ export class Room {
     }
     this.init();
     this.peer.on("open", () => {
+      if (this.connection?.open) return;
+      this.joinFailed = false;
+      this.status(
+        "negotiating",
+        this.relayUrl
+          ? "Entrando na sala pelo servidor…"
+          : "Negociando a conexão entre os aparelhos. Isso pode levar até um minuto…",
+      );
       const c = this.peer.connect(`war-mesa-${this.code}`, { reliable: true });
       this.connection = c;
-      const timeout = setTimeout(() => {
-        if (!c.open)
-          this.emit(
-            "error",
-            "A conexão demorou demais. O anfitrião precisa manter a sala aberta. Algumas redes exigem um servidor TURN.",
-          );
-      }, 18000);
+      let identified = false,
+        helloDeadline;
+      const networkMessage = this.relayUrl
+        ? "O servidor não concluiu a conexão. Confira o endereço e tente novamente."
+        : "A conexão direta entre essas redes não foi concluída. Use a opção Servidor de sala para conectar sem depender da rede dos aparelhos.";
+      const fail = (message) => {
+        this.cancel(timeout);
+        this.cancel(helloDeadline);
+        if (this.closed || this.joinFailed) return;
+        this.joinFailed = true;
+        this.status("error", message);
+        this.emit("error", message);
+        c.close();
+      };
+      const timeout = this.later(
+        () => fail(networkMessage),
+        this.connectionTimeout,
+      );
+      this.pendingJoinCancel = () => {
+        this.cancel(timeout);
+        this.cancel(helloDeadline);
+        this.joinFailed = true;
+        c.close();
+      };
       c.on("open", () => {
-        clearTimeout(timeout);
+        this.cancel(timeout);
+        this.status(
+          "identifying",
+          "Conexão aberta. Confirmando seu lugar na sala…",
+        );
+        helloDeadline = this.later(
+          () =>
+            fail(
+              "O anfitrião não confirmou sua entrada. Tente entrar novamente.",
+            ),
+          this.handshakeTimeout,
+        );
         c.send({ type: "hello", name, token });
       });
       c.on("data", (data) => {
-        if (data.type === "identity") this.emit("identity", data.id);
+        if (!data || typeof data !== "object") return;
+        if (
+          data.type === "identity" &&
+          Number.isInteger(data.id) &&
+          data.id >= 0 &&
+          data.id < 6
+        ) {
+          identified = true;
+          this.pendingJoinCancel = null;
+          this.cancel(timeout);
+          this.cancel(helloDeadline);
+          this.status("connected", "Conectado à sala.");
+          this.emit("identity", data.id);
+        }
         if (data.type === "lobby")
           this.emit("lobby", { ...data, host: false, code: this.code });
         if (data.type === "state") this.emit("state", data.state);
         if (data.type === "presence") this.emit("presence", data.members);
-        if (data.type === "error") this.emit("error", data.message);
+        if (data.type === "error") {
+          if (!identified) fail(data.message);
+          else this.emit("error", data.message);
+        }
       });
-      c.on("close", () => {
-        clearTimeout(timeout);
-        this.emit(
-          "error",
-          "A conexão com o anfitrião foi encerrada. Entre novamente com o mesmo navegador para recuperar seu lugar.",
-        );
-      });
-      c.on("error", () =>
-        this.emit("error", "Não foi possível conectar à sala."),
+      c.on("close", () =>
+        fail(
+          identified
+            ? "A conexão com o anfitrião foi encerrada. Entre novamente com o mesmo navegador para recuperar seu lugar."
+            : networkMessage,
+        ),
       );
+      c.on("error", () => fail(networkMessage));
+      const pc = c.peerConnection;
+      pc?.addEventListener("iceconnectionstatechange", () => {
+        if (pc.iceConnectionState === "failed") fail(networkMessage);
+      });
     });
   }
   publicMembers() {
@@ -199,6 +325,8 @@ export class Room {
   }
   close() {
     this.closed = true;
+    for (const timer of this.timers) clearTimeout(timer);
+    this.timers.clear();
     this.peer?.destroy();
   }
 }

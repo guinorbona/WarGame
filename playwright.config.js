@@ -15,6 +15,11 @@ export default defineConfig({
   },
   webServer: [
     {
+      command: "node tests/relay-server.js",
+      url: "http://127.0.0.1:9002/health",
+      reuseExistingServer: false,
+    },
+    {
       command: "node tests/peer-server.js",
       url: "http://127.0.0.1:9001",
       reuseExistingServer: false,
